@@ -299,7 +299,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                 <>
                    <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 mb-4">
                       <p className="text-[10px] text-purple-700 leading-tight">
-                         <b>影子模式 (Shadow Mode):</b> 系统将自动抓取生产环境目前的“生产策略”作为 Baseline，与您当前正在编辑的策略进行全量 KPI 模拟对比。
+                         <b>策略仿真沙盒 (Simulation Sandbox):</b> 系统将自动抓取生产环境目前的“生产策略”作为 Baseline，与您当前正在编辑的策略进行全量 KPI 模拟对比。
                       </p>
                    </div>
                    <div>
@@ -464,7 +464,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                          </div>
                          <h4 className="text-[20px] font-black tracking-tight mb-2">一键开启 5% 灰度测试 (Canary Rollout)</h4>
                          <p className="text-[12px] text-purple-100 leading-relaxed opacity-90">
-                            影子仿真结果显示，新策略在不影响现有稳定性的前提下，全天候路径损耗降低了 12%。点击下方按钮将自动生成一份灰度测试流程，并在生产集群中以影子模式并发运行 24h 观察。
+                            仿真沙盒结果显示，新策略在不影响现有稳定性的前提下，全天候路径损耗降低了 12%。点击下方按钮将自动生成一份灰度测试流程，并在生产集群中以仿真模式并发运行 24h 观察。
                          </p>
                       </div>
                       <button className="px-8 py-4 bg-white text-purple-700 font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all text-[14px] flex items-center gap-2">
@@ -513,7 +513,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                 <Card className="p-6 border-slate-100">
                   <div className="flex items-center justify-between mb-8">
                     <div>
-                      <h4 className="text-[13px] font-bold text-slate-700">节点处理负载与效能 (Pipeline Performance)</h4>
+                      <h4 className="text-[13px] font-bold text-slate-700">节点处理负载与效能 (Strategy Flow Performance)</h4>
                       <p className="text-[10px] text-slate-400">显示寻址序列中各 D 节点的计算开销与命中质量</p>
                     </div>
                     <div className="flex gap-4">
@@ -604,7 +604,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                   <div className="bg-slate-50 border border-theme-border rounded-2xl p-4">
                     <div className="flex items-center justify-between mb-3">
                        <h5 className="text-[11px] font-bold text-theme-muted uppercase tracking-wider flex items-center gap-2">
-                         <ShieldCheck className="w-3.5 h-3.5" /> 全局业务红线校验 (Guardrails)
+                         <ShieldCheck className="w-3.5 h-3.5" /> 跨越策略的强制合规拦截 (Global Guardrails)
                        </h5>
                        <span className="text-[10px] text-theme-muted">{simResult.guardrailResults.filter(g => g.matched).length} 项触发</span>
                     </div>
@@ -636,7 +636,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
 
                 {/* Dynamic Funnel View */}
                 <div className="pt-2">
-                  <div className="text-[11px] font-semibold text-theme-muted uppercase tracking-wider mb-4">漏斗计算流 (Sequence Execution Stream)</div>
+                  <div className="text-[11px] font-semibold text-theme-muted uppercase tracking-wider mb-4">筛选与优选漏斗 (Execution Stream)</div>
                   <div className="space-y-0">
                     {simResult.funnelSteps.map((stepData, idx) => (
                       <div key={idx}>
@@ -647,7 +647,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                         )}
                         <div className={`border border-theme-border rounded-[10px] p-4 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.02)] border-l-4 ${stepData.remaining === 0 ? 'border-l-red-500' : 'border-l-theme-primary'}`}>
                           <div className="flex items-center justify-between mb-3">
-                            <span className="font-semibold text-[13px] text-theme-ink">执行算子库 (Sequence Node) - {stepData.name.replace('Phase', 'Node')}</span>
+                            <span className="font-semibold text-[13px] text-theme-ink">执行动作 (Execution Node) - {stepData.name.replace('Phase', 'Node')}</span>
                             <Badge variant={stepData.remaining === 0 ? "warning" : "neutral"}>
                               {stepData.remaining === 0 && stepData.failedFallback ? `熔断：${stepData.failedFallback}` : (stepData.failedFallback ? `执行后动作: ${stepData.failedFallback}` : "过滤 & 排序")}
                             </Badge>

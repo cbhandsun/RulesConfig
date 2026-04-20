@@ -156,7 +156,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
               
               // Smart Renaming: if default name, update to include subject name
               let newName = s.name;
-              if (s.name.includes('执行算子') || s.name.includes('执行步骤') || s.name.startsWith('新增节点')) {
+              if (s.name.includes('执行动作') || s.name.includes('执行步骤') || s.name.startsWith('新增节点')) {
                  const intent = getStepIntent(subject);
                  newName = `${intent} (自动升级)`;
               }
@@ -211,7 +211,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
           const intent = getStepIntent(subject);
           const newStep: RuleStep = {
             id: `st-${Math.floor(Math.random() * 10000)}`,
-            name: `${intent} (新算子 #${r.steps.length + 1})`,
+            name: `${intent} (新动作 #${r.steps.length + 1})`,
             targetSubject: subject,
             filters: [],
             sorters: [],
@@ -322,7 +322,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
       steps: [
         {
           id: `step-${Date.now()}`,
-          name: '默认寻址算子',
+          name: '默认寻址动作',
           filters: [],
           sorters: [],
           failoverAction: 'NEXT_STEP' as const,
@@ -527,7 +527,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
             ...r,
             branches: [
               ...currentBranches,
-              { id: `br-${Date.now()}`, criteria: 'NEW_CONDITION', targetRuleId: '', label: '新决策路径' }
+              { id: `br-${Date.now()}`, criteria: [], targetRuleId: '', label: '新决策路径' }
             ]
           };
         })
@@ -882,6 +882,14 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                         </div>
                         <div className="text-[9px] text-theme-muted mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="px-1.5 py-0.5 bg-[#F8F9FA] rounded-[4px] border border-theme-border font-mono font-bold leading-none">{factor.category}</span>
+                          <span className={`px-1.5 py-0.5 rounded-[4px] font-bold leading-none border ${
+                            factor.impactType === 'CONSTRAINT' ? 'bg-red-50 text-red-600 border-red-100' :
+                            factor.impactType === 'ADJUSTMENT' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                            'bg-purple-50 text-purple-600 border-purple-100'
+                          }`}>
+                            {factor.impactType === 'CONSTRAINT' ? '约束' :
+                             factor.impactType === 'ADJUSTMENT' ? '调节' : '行为'}
+                          </span>
                           
                           {/* Recognition Badge */}
                           {factor.targetObject === effectiveSubject ? (
@@ -937,6 +945,25 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                               {data.id}
                            </Badge>
                         </div>
+                        
+                        {/* 层次结构引导 (Hierarchy Guide) */}
+                        <div className="flex items-center gap-2 mt-2 bg-slate-50 w-fit px-3 py-1 rounded-full border border-slate-200/60 shadow-inner">
+                           <div className="flex items-center gap-1.5">
+                              <LayoutGrid className="w-3 h-3 text-slate-400" />
+                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">策略 (Strategy)</span>
+                           </div>
+                           <ChevronRight className="w-3 h-3 text-slate-300" />
+                           <div className="flex items-center gap-1.5">
+                              <GitBranch className="w-3 h-3 text-blue-500" />
+                              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">规则 (Rule)</span>
+                           </div>
+                           <ChevronRight className="w-3 h-3 text-slate-300" />
+                           <div className="flex items-center gap-1.5">
+                              <Zap className="w-3 h-3 text-indigo-500" />
+                              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">步骤 (Step)</span>
+                           </div>
+                        </div>
+
                          <div className="flex flex-col gap-3 mt-3">
                             <div className="flex items-center gap-4">
                                <div className="flex items-center gap-1.5 text-theme-muted text-[11px] font-bold opacity-60">
@@ -983,12 +1010,12 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                      {sceneStats.hasGuardrails && (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 rounded-full border border-red-100 text-[11px] font-bold shadow-sm">
                            <ShieldCheck className="w-4 h-4" />
-                           全局红线防护
+                           全局合规拦截防护
                         </div>
                      )}
                      <div className="w-px h-4 bg-slate-200 mx-1"></div>
                      <span className="text-[11px] text-theme-muted font-medium italic opacity-70">
-                        * 已挂载 {data.rules.length} 个规则维度及 {sceneStats.steps} 个业务执行算子
+                        * 已挂载 {data.rules.length} 个规则维度及 {sceneStats.steps} 个业务执行动作
                      </span>
                   </div>
                </div>
@@ -1026,7 +1053,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                   <div className="flex items-center gap-4">
                    <div className="h-8 w-2 bg-gradient-to-b from-blue-600 to-blue-400 rounded-full"></div>
                    <div>
-                     <h2 className="text-[17px] font-black text-slate-800 uppercase tracking-tight">业务全链路决策流图 (Business Logic Pipeline)</h2>
+                     <h2 className="text-[17px] font-black text-slate-800 uppercase tracking-tight">业务全链路决策流图 (Business Strategy Flow)</h2>
                      <p className="text-[12px] text-theme-muted mt-1 leading-relaxed">
                         支持 <b>多维并行计算</b>、<b>按序分层回退</b> 与 <b>智能分支路由</b>。节点间的连接逻辑定义了策略是“叠加优选”还是“降级兜底”。
                      </p>
@@ -1038,7 +1065,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl border border-red-100 hover:bg-red-100 transition-all font-bold text-[12px] shadow-sm active:scale-95 group"
                   >
                     <ShieldAlert className="w-4 h-4 group-hover:animate-pulse" />
-                    全局管控红线 ({data?.guardrails?.length || 0})
+                    全局合规红线 ({data?.guardrails?.length || 0})
                   </button>
                   <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
                     <Layers className="w-3.5 h-3.5 text-slate-400" />
@@ -1104,12 +1131,12 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                               {rule.flowControl === 'CONTINUE' ? (
                                 <div className="px-2.5 py-1 bg-white text-emerald-600 border border-emerald-200 rounded-full text-[9px] font-black flex items-center gap-1.5 shadow-md animate-in zoom-in-50 duration-300">
                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                                   维度叠加 (Pipeline)
+                                   综合评分 (Scoring)
                                 </div>
                               ) : rule.flowControl === 'JUMP' ? (
                                 <div className="px-2.5 py-1 bg-white text-purple-600 border border-purple-200 rounded-full text-[9px] font-black flex items-center gap-1.5 shadow-md animate-in zoom-in-50 duration-300">
                                    <GitBranch className="w-3 h-3" />
-                                   条件跳转 (Jump)
+                                   特殊通道 (Jump)
                                 </div>
                               ) : (
                                 <div className="px-2.5 py-1 bg-white text-slate-500 border border-slate-200 rounded-full text-[9px] font-black flex items-center gap-1.5 shadow-sm">
@@ -1171,9 +1198,12 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                             #{idx + 1}
                           </div>
                         </div>
-                        <span className={`text-[10px] font-black uppercase tracking-tighter ${activeRuleId === rule.id ? 'text-blue-600' : 'text-slate-300'}`}>
-                          {rule.type === 'GATE' ? 'Logical Gate' : 'Strategy Node (层级)'}
-                        </span>
+                        <div className="flex flex-col items-center">
+                           <span className={`text-[10px] font-black uppercase tracking-tighter ${activeRuleId === rule.id ? 'text-blue-600' : 'text-slate-300'}`}>
+                              {rule.type === 'GATE' ? 'Logical Gate' : 'Strategy Rule (规则)'}
+                           </span>
+                           <span className="text-[8px] font-bold text-slate-400/60 uppercase tracking-[0.1em] mt-0.5">业务决策维度</span>
+                        </div>
                       </div>
 
                       {/* Branch Indicators for Gates */}
@@ -1243,7 +1273,9 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
 
                             {/* Flow Control Badge */}
                             <div className="mt-1 flex">
-                               {(rule.flowControl === 'TERMINATE' || (!rule.flowControl && rule.steps.some(s => s.flowControl === 'TERMINATE'))) ? (
+                               {rule.flowControl === 'JUMP' ? (
+                                  <Badge variant="neutral" className="text-[8px] bg-purple-50 text-purple-600 border-purple-200">决策路由节点 (Decision)</Badge>
+                               ) : (rule.flowControl === 'TERMINATE' || (!rule.flowControl && rule.steps.some(s => s.flowControl === 'TERMINATE'))) ? (
                                   <Badge variant="warning" className="text-[8px] bg-orange-50 text-orange-600 border-orange-200">拦截/终结节点</Badge>
                                ) : (
                                   <Badge variant="success" className="text-[8px] bg-emerald-50 text-emerald-600 border-emerald-200">流转/过渡节点</Badge>
@@ -1324,7 +1356,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                              />
                            </div>
                            <p className="text-[10px] text-blue-400/80 italic leading-tight">
-                             * 修改此项将动态调整顶部的瀑布流分组。建议格式为 “分组前缀: 分组描述”。
+                             * 修改此项将动态调整顶部的顺延降级分组。建议格式为 “分组前缀: 分组描述”。
                            </p>
                         </div>
                       </div>
@@ -1392,17 +1424,17 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                            <div 
                               onClick={() => setRuleArchitecture('PIPELINE')}
                               className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-2 relative ${
-                                 activeRule.type === 'DIMENSION' && activeRule.flowControl === 'CONTINUE' 
+                                 (activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'CONTINUE' 
                                     ? 'border-emerald-500 bg-emerald-50/30' 
                                     : 'border-transparent bg-white hover:border-slate-200 shadow-sm'
                               }`}
                            >
                               <div className="flex items-center justify-between">
-                                 <div className={`p-1.5 rounded-lg ${activeRule.type === 'DIMENSION' && activeRule.flowControl === 'CONTINUE' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                 <div className={`p-1.5 rounded-lg ${(activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'CONTINUE' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                     <LinkIcon className="w-4 h-4" />
                                  </div>
                               </div>
-                              <h5 className={`text-[12px] font-black ${activeRule.type === 'DIMENSION' && activeRule.flowControl === 'CONTINUE' ? 'text-emerald-900' : 'text-slate-700'}`}>维度累加</h5>
+                              <h5 className={`text-[12px] font-black ${(activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'CONTINUE' ? 'text-emerald-900' : 'text-slate-700'}`}>综合评分</h5>
                               <p className="text-[9px] text-slate-400 leading-tight">线性流水线。此节点执行后无缝进入下一维度，实现因子叠加。</p>
                            </div>
 
@@ -1410,17 +1442,17 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                            <div 
                               onClick={() => setRuleArchitecture('WATERFALL')}
                               className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-2 relative ${
-                                 activeRule.type === 'DIMENSION' && activeRule.flowControl === 'TERMINATE' 
+                                 (activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'TERMINATE' 
                                     ? 'border-orange-500 bg-orange-50/30' 
                                     : 'border-transparent bg-white hover:border-slate-200 shadow-sm'
                               }`}
                            >
                               <div className="flex items-center justify-between">
-                                 <div className={`p-1.5 rounded-lg ${activeRule.type === 'DIMENSION' && activeRule.flowControl === 'TERMINATE' ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                 <div className={`p-1.5 rounded-lg ${(activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'TERMINATE' ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                     <ArrowDownRight className="w-4 h-4" />
                                  </div>
                               </div>
-                              <h5 className={`text-[12px] font-black ${activeRule.type === 'DIMENSION' && activeRule.flowControl === 'TERMINATE' ? 'text-orange-900' : 'text-slate-700'}`}>降级匹配</h5>
+                              <h5 className={`text-[12px] font-black ${(activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'TERMINATE' ? 'text-orange-900' : 'text-slate-700'}`}>降级匹配</h5>
                               <p className="text-[9px] text-slate-400 leading-tight">分层搜索。当前节点满足则立即终结，失败则向下“溢出”降级。</p>
                            </div>
 
@@ -1428,17 +1460,17 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                            <div 
                               onClick={() => setRuleArchitecture('JUMP')}
                               className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-2 relative ${
-                                 activeRule.type === 'DIMENSION' && activeRule.flowControl === 'JUMP' 
+                                 (activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'JUMP' 
                                     ? 'border-purple-500 bg-purple-50/30' 
                                     : 'border-transparent bg-white hover:border-slate-200 shadow-sm'
                               }`}
                            >
                               <div className="flex items-center justify-between">
-                                 <div className={`p-1.5 rounded-lg ${activeRule.type === 'DIMENSION' && activeRule.flowControl === 'JUMP' ? 'bg-purple-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                 <div className={`p-1.5 rounded-lg ${(activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'JUMP' ? 'bg-purple-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                     <Zap className="w-4 h-4" />
                                  </div>
                               </div>
-                              <h5 className={`text-[12px] font-black ${activeRule.type === 'DIMENSION' && activeRule.flowControl === 'JUMP' ? 'text-purple-900' : 'text-slate-700'}`}>条件跳转</h5>
+                              <h5 className={`text-[12px] font-black ${(activeRule.type === 'DIMENSION' || !activeRule.type) && activeRule.flowControl === 'JUMP' ? 'text-purple-900' : 'text-slate-700'}`}>特殊通道</h5>
                               <p className="text-[9px] text-slate-400 leading-tight">逻辑跳跃。满足先验条件后越过常规序列，直达目标场景（如异常）。</p>
                            </div>
 
@@ -1463,7 +1495,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
 
                         {activeRule.flowControl === 'JUMP' && (
                            <div className="mt-4 animate-in slide-in-from-top-2 p-4 bg-white rounded-xl border border-purple-100">
-                              <label className="text-[10px] font-black text-purple-600 uppercase mb-2 block tracking-widest">目标跳转规则 (Jump Target)</label>
+                              <label className="text-[10px] font-black text-purple-600 uppercase mb-2 block tracking-widest">目标特殊通道 (Jump Target)</label>
                               <div className="relative">
                                  <select 
                                    value={activeRule.jumpTargetId || ''}
@@ -1471,9 +1503,43 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                    className="w-full h-10 px-3 bg-slate-50 border border-purple-200 rounded-lg text-[12px] font-bold text-purple-900 focus:ring-2 focus:ring-purple-500/20"
                                  >
                                     <option value="">-- 选择跳转目标 --</option>
-                                    {data?.rules.filter(r => r.id !== activeRule.id).map(r => (
-                                       <option key={r.id} value={r.id}>{r.name} ({r.id})</option>
-                                    ))}
+                                    {data?.rules.filter(r => r.id !== activeRule.id).map(r => {
+                                       // Basic cycle check: if we jump to r, can r reach activeRule?
+                                       const causesCycle = (() => {
+                                          const canReach = (fromId: string, toId: string, visited = new Set<string>()): boolean => {
+                                             if (fromId === toId) return true;
+                                             if (visited.has(fromId)) return false;
+                                             visited.add(fromId);
+                                             const rule = data?.rules.find(x => x.id === fromId);
+                                             if (!rule) return false;
+                                             
+                                             // Jump target
+                                             if (rule.flowControl === 'JUMP' && rule.jumpTargetId) {
+                                                if (canReach(rule.jumpTargetId, toId, visited)) return true;
+                                             }
+                                             // Gate branches
+                                             if (rule.type === 'GATE' && rule.branches) {
+                                                for (const br of rule.branches) {
+                                                   if (br.targetRuleId && canReach(br.targetRuleId, toId, visited)) return true;
+                                                }
+                                             }
+                                             // Sequential flow (if not JUMP/TERMINATE)
+                                             const idx = data?.rules.findIndex(x => x.id === fromId) ?? -1;
+                                             if (idx !== -1 && idx < (data?.rules.length ?? 0) - 1) {
+                                                const nextId = data?.rules[idx + 1].id;
+                                                if (canReach(nextId, toId, visited)) return true;
+                                             }
+                                             return false;
+                                          };
+                                          return canReach(r.id, activeRule.id);
+                                       })();
+
+                                       return (
+                                          <option key={r.id} value={r.id} disabled={causesCycle}>
+                                             {r.name} {causesCycle ? '(会产生死循环)' : ''}
+                                          </option>
+                                       );
+                                    })}
                                  </select>
                               </div>
                            </div>
@@ -1522,7 +1588,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                          <h4 className="text-[12px] font-black text-blue-900 mb-2 flex items-center gap-2">
                            <Activity className="w-3.5 h-3.5" /> 策略权重与逻辑洞察 (Insights)
                          </h4>
-                         <p className="text-[10px] text-blue-700/70 mb-4 leading-tight">基于当前算子链的平衡性与业务特征实时评估：</p>
+                         <p className="text-[10px] text-blue-700/70 mb-4 leading-tight">基于当前执行动作的平衡性与业务特征实时评估：</p>
                          <RadarInsight rule={activeRule} />
                          <BusinessInsight rule={activeRule} />
                          
@@ -1556,7 +1622,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                <div className="flex items-start gap-3">
                                   <div className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></div>
                                   <p className="text-[10px] text-slate-300 leading-normal">
-                                    建议：在 Sorters 列表末尾增加一个 <span className="text-blue-300">“库内容错因子”</span> 以提升极端波峰下的抗压能力。
+                                    建议：在 业务偏好列表末尾增加一个 <span className="text-blue-300">“库内容错因子”</span> 以提升极端波峰下的抗压能力。
                                   </p>
                                </div>
                                <button className="w-full py-2 bg-white/10 hover:bg-white/20 rounded text-[10px] font-bold transition-colors border border-white/5 mt-2">
@@ -1648,7 +1714,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                 <div className="flex items-center gap-2 mt-4 mb-2 ml-1">
                   <div className="w-1.5 h-4 bg-theme-accent rounded-full"></div>
                   <div className="font-bold text-[14px] text-theme-ink uppercase tracking-wider">
-                    {activeRule.type === 'GATE' ? '分流路径逻辑配置 (Routing Branches)' : '作业执行算子流 (Operational Step Sequence)'}
+                    {activeRule.type === 'GATE' ? '分流路径逻辑配置 (Routing Branches)' : '作业执行动作流 (Operational Step Sequence)'}
                   </div>
                 </div>
 
@@ -1683,17 +1749,76 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                           className="h-9 text-[12px] font-bold"
                                        />
                                     </div>
-                                    <div className="space-y-1.5">
-                                       <label className="text-[10px] font-bold text-theme-muted uppercase tracking-wider">判定条件 (Criteria)</label>
-                                       <Input 
-                                          value={branch.criteria}
-                                          onChange={(e) => handleUpdateBranch(branch.id, 'criteria', e.target.value)}
-                                          className="h-9 text-[12px] font-mono"
-                                          placeholder="e.g. SIZE == 'BULKY'"
-                                       />
+                                    <div className="space-y-1.5 col-span-2">
+                                       <div className="flex items-center justify-between mb-1">
+                                          <label className="text-[10px] font-bold text-theme-muted uppercase tracking-wider">判定条件 (Criteria)</label>
+                                          <button 
+                                             onClick={() => {
+                                                const newCondition = { id: `brc-${Date.now()}`, field: '属性', operator: '==', value: '值' };
+                                                handleUpdateBranch(branch.id, 'criteria', [...(branch.criteria || []), newCondition]);
+                                             }}
+                                             className="text-[9px] text-blue-600 font-bold hover:underline"
+                                          >
+                                             + 添加条件
+                                          </button>
+                                       </div>
+                                       <div className="flex flex-col gap-1.5">
+                                          {(!branch.criteria || branch.criteria.length === 0) ? (
+                                             <div className="text-[10px] text-slate-400 italic py-2 px-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                                无判定条件 (默认流转)
+                                             </div>
+                                          ) : (
+                                             branch.criteria.map((c: any, ci: number) => (
+                                                <div key={c.id} className="flex items-center gap-2 group/brc">
+                                                   <Input 
+                                                      value={c.field}
+                                                      onChange={(e) => {
+                                                         const newCriteria = [...branch.criteria];
+                                                         newCriteria[ci] = { ...c, field: e.target.value };
+                                                         handleUpdateBranch(branch.id, 'criteria', newCriteria);
+                                                      }}
+                                                      className="h-8 text-[11px] flex-1"
+                                                      placeholder="属性"
+                                                   />
+                                                   <select 
+                                                      value={c.operator}
+                                                      onChange={(e) => {
+                                                         const newCriteria = [...branch.criteria];
+                                                         newCriteria[ci] = { ...c, operator: e.target.value };
+                                                         handleUpdateBranch(branch.id, 'criteria', newCriteria);
+                                                      }}
+                                                      className="h-8 px-1 text-[11px] border border-theme-border rounded bg-white"
+                                                   >
+                                                      <option value="==">==</option>
+                                                      <option value="!=">!=</option>
+                                                      <option value="IN">IN</option>
+                                                   </select>
+                                                   <Input 
+                                                      value={c.value}
+                                                      onChange={(e) => {
+                                                         const newCriteria = [...branch.criteria];
+                                                         newCriteria[ci] = { ...c, value: e.target.value };
+                                                         handleUpdateBranch(branch.id, 'criteria', newCriteria);
+                                                      }}
+                                                      className="h-8 text-[11px] flex-1"
+                                                      placeholder="值"
+                                                   />
+                                                   <button 
+                                                      onClick={() => {
+                                                         const newCriteria = branch.criteria.filter((_: any, i: number) => i !== ci);
+                                                         handleUpdateBranch(branch.id, 'criteria', newCriteria);
+                                                      }}
+                                                      className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover/brc:opacity-100 transition-opacity"
+                                                   >
+                                                      <X className="w-3 h-3" />
+                                                   </button>
+                                                </div>
+                                             ))
+                                          )}
+                                       </div>
                                     </div>
                                     <div className="space-y-1.5">
-                                       <label className="text-[10px] font-bold text-theme-muted uppercase tracking-wider">跳转目标维度 (Jump Target)</label>
+                                       <label className="text-[10px] font-bold text-theme-muted uppercase tracking-wider">跳转目标通道 (Jump Target)</label>
                                        <div className="relative">
                                           <select 
                                              className="w-full h-9 px-3 pr-8 bg-theme-bg border border-theme-border rounded-[8px] text-[12px] font-bold text-purple-700 appearance-none cursor-pointer focus:outline-none"
@@ -1701,9 +1826,38 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                              onChange={(e) => handleUpdateBranch(branch.id, 'targetRuleId', e.target.value)}
                                           >
                                              <option value="">-- 选择目标流转节点 --</option>
-                                             {data.rules.filter(r => r.id !== activeRule.id).map(r => (
-                                                <option key={r.id} value={r.id}>{r.name} ({r.id})</option>
-                                             ))}
+                                             {data.rules.filter(r => r.id !== activeRule.id).map(r => {
+                                                const causesCycle = (() => {
+                                                   const canReach = (fromId: string, toId: string, visited = new Set<string>()): boolean => {
+                                                      if (fromId === toId) return true;
+                                                      if (visited.has(fromId)) return false;
+                                                      visited.add(fromId);
+                                                      const rule = data?.rules.find(x => x.id === fromId);
+                                                      if (!rule) return false;
+                                                      if (rule.flowControl === 'JUMP' && rule.jumpTargetId) {
+                                                         if (canReach(rule.jumpTargetId, toId, visited)) return true;
+                                                      }
+                                                      if (rule.type === 'GATE' && rule.branches) {
+                                                         for (const br of rule.branches) {
+                                                            if (br.targetRuleId && canReach(br.targetRuleId, toId, visited)) return true;
+                                                         }
+                                                      }
+                                                      const idx = data?.rules.findIndex(x => x.id === fromId) ?? -1;
+                                                      if (idx !== -1 && idx < (data?.rules.length ?? 0) - 1) {
+                                                         const nextId = data?.rules[idx + 1].id;
+                                                         if (canReach(nextId, toId, visited)) return true;
+                                                      }
+                                                      return false;
+                                                   };
+                                                   return canReach(r.id, activeRule.id);
+                                                })();
+
+                                                return (
+                                                   <option key={r.id} value={r.id} disabled={causesCycle}>
+                                                      {r.name} {causesCycle ? '(会产生死循环)' : ''}
+                                                   </option>
+                                                );
+                                             })}
                                           </select>
                                           <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-theme-muted pointer-events-none" />
                                        </div>
@@ -1748,6 +1902,11 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                           <div className="flex items-center gap-5 flex-1">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-[18px] shadow-lg shrink-0 transition-all ${focusedStepId === step.id ? 'bg-theme-primary rotate-3 transform' : (activeDragOrHoverFactor?.targetObject === (step.targetSubject || data.primarySubject)) ? 'bg-blue-600 animate-bounce' : 'bg-slate-700'}`}>
                               {idx + 1}
+                              <div className="absolute -top-6 -left-1 flex flex-col items-start opacity-0 group-hover/step:opacity-100 transition-opacity">
+                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-white/80 px-2 py-0.5 rounded border border-slate-200 shadow-sm">
+                                    步骤 (Step) #{idx + 1}
+                                 </span>
+                              </div>
                             </div>
                             <div className="flex flex-col flex-1 pl-1">
                               <div className="flex items-center gap-3">
@@ -1785,7 +1944,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                   className="font-bold text-[15px] text-theme-ink bg-transparent border-b border-transparent hover:border-theme-border focus:border-theme-primary focus:outline-none transition-all px-1 min-w-[200px]"
                                   value={step.name}
                                   onChange={(e) => handleUpdateStepName(step.id, e.target.value)}
-                                  placeholder="执行算子显示名称..."
+                                  placeholder="执行动作显示名称..."
                                 />
                                 <div className="flex items-center bg-slate-100/50 rounded-lg p-0.5 scale-90 border border-slate-200/50">
                                    <button 
@@ -1804,7 +1963,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                      }}
                                      className={`px-2 py-0.5 rounded-md text-[9px] font-black transition-all ${step.flowControl === 'CONTINUE' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
                                    >
-                                      累加流转
+                                      综合评分流转
                                    </button>
                                 </div>
                               </div>
@@ -1950,14 +2109,14 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                              <div className="flex items-center justify-between">
                                 <div className="text-[11px] font-bold text-theme-muted uppercase tracking-widest flex items-center gap-2">
                                   <span className="w-1.5 h-1.5 rounded-full bg-theme-primary shadow-[0_0_8px_rgba(0,102,204,0.3)]"></span>
-                                  硬性拦截规则/红线 (Hard Constraint Filters)
+                                  硬性拦截规则/红线 (Hard Constraints)
                                   <Info className="w-3.5 h-3.5 text-blue-400 cursor-pointer hover:text-blue-600 transition-colors ml-1" onClick={() => setIsGuideModalOpen(true)} title="了解约束限制的作用" />
                                 </div>
                                 <button 
                                   onClick={() => handleAddFilter(step.id)}
                                   className="text-[10px] text-theme-primary hover:underline font-bold flex items-center gap-1 group/add"
                                 >
-                                  <Plus className="w-3 h-3 transition-transform group-hover/add:rotate-90" /> 新增红线条件
+                                  <Plus className="w-3 h-3 transition-transform group-hover/add:rotate-90" /> 新增拦截条件
                                 </button>
                              </div>
                               <div className="flex flex-wrap gap-4">
@@ -1998,13 +2157,24 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                       </div>
 
                                       {/* Value Input Area */}
-                                      <div className={`h-full px-4 flex items-center bg-white border-l border-slate-100 min-w-[120px] ${filter.field.includes('数量') ? 'bg-red-50/30' : ''}`}>
-                                         <input 
-                                           className={`w-full bg-transparent text-[13px] font-bold placeholder:text-slate-200 focus:outline-none ${filter.field.includes('数量') ? 'text-red-600' : 'text-orange-600'}`}
-                                           value={filter.value}
-                                           placeholder="拦截阈值 (VALUE)"
-                                           onChange={(e) => handleUpdateFilter(step.id, filter.id, filter.field, filter.operator, e.target.value)}
-                                         />
+                                      <div 
+                                        onClick={() => setEditingParamsStepId(step.id)}
+                                        className={`h-full px-4 flex items-center bg-white border-l border-slate-100 min-w-[120px] cursor-pointer group/val relative ${filter.field.includes('数量') ? 'bg-red-50/30' : 'hover:bg-blue-50/50'}`}
+                                      >
+                                         <div className="flex items-center gap-2 w-full">
+                                           <div className={`flex-1 text-[13px] font-black ${filter.field.includes('数量') ? 'text-red-600' : 'text-orange-600'}`}>
+                                              {filter.value}
+                                           </div>
+                                           <div className="flex items-center gap-1 opacity-40 group-hover/val:opacity-100 transition-opacity">
+                                              <LinkIcon className="w-3 h-3 text-slate-400" />
+                                              <Settings className="w-3 h-3 text-slate-400" />
+                                           </div>
+                                         </div>
+                                         
+                                         {/* Tooltip on hover */}
+                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[9px] rounded whitespace-nowrap opacity-0 group-hover/val:opacity-100 pointer-events-none transition-opacity z-50">
+                                            此值引用自“节点参数”，点击前往修改
+                                         </div>
                                       </div>
 
                                       {/* Removal Trigger */}
@@ -2112,23 +2282,54 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                <div className="text-[11px] font-bold text-theme-ink uppercase tracking-widest flex items-center justify-between mb-4">
                                   <div className="flex items-center gap-2">
                                     <Settings className={`w-3.5 h-3.5 ${step.config && Object.keys(step.config).some(k => k.includes('Qty')) ? 'text-red-500' : 'text-blue-500'}`} />
-                                    算子级业务管控参数 (Node Logic Configurations)
+                                    动作级业务管控参数 (Node Logic Configurations)
                                     <Badge variant="neutral" className="ml-2 bg-white text-[9px]">ACTIVE CONFIG</Badge>
                                   </div>
                                   <button onClick={() => setEditingParamsStepId(null)} className="text-theme-muted hover:text-theme-ink"><X className="w-4 h-4" /></button>
                                </div>
-                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {step.config && Object.keys(step.config).length > 0 ? Object.entries(step.config).map(([key, val]) => (
-                                     <div key={key} className="bg-white rounded-[10px] p-3 border border-theme-border flex flex-col gap-1.5 hover:border-theme-primary/30 transition-all">
-                                        <label className="text-[10px] text-theme-muted font-bold font-mono pl-1">{key}</label>
-                                        <input 
-                                          className="text-[13px] font-medium text-theme-ink w-full border-b border-theme-border/50 pb-1 pt-1 focus:outline-none focus:border-theme-primary transition-all bg-transparent focus:bg-blue-50/20"
-                                          value={val as string}
-                                          onChange={(e) => handleUpdateStepConfig(step.id, key, e.target.value)}
-                                        />
-                                     </div>
-                                  )) : (
-                                    <div className="col-span-2 text-center py-6 bg-white/50 border border-theme-border border-dashed rounded-[10px] text-[12px] text-theme-muted italic opacity-60">此动作算子目前暂未预设特殊的业务挂载参数，全部执行默认逻辑。</div>
+                               <div className="grid grid-cols-1 gap-6">
+                                  {step.config && Object.keys(step.config).length > 0 ? (() => {
+                                     const configEntries = Object.entries(step.config);
+                                     const groups = {
+                                        CONSTRAINT: configEntries.filter(([k]) => /limit|required|strict|max|min|allow|compliance|lock|match/i.test(k)),
+                                        ADJUSTMENT: configEntries.filter(([k]) => /weight|factor|bias|preference|penalty|coeff|rate|ratio|deviation/i.test(k)),
+                                        BEHAVIORAL: configEntries.filter(([k]) => !/limit|required|strict|max|min|allow|compliance|lock|match|weight|factor|bias|preference|penalty|coeff|rate|ratio|deviation/i.test(k))
+                                     };
+
+                                     return (
+                                        <>
+                                           {Object.entries(groups).map(([groupName, entries]) => {
+                                              if (entries.length === 0) return null;
+                                              const label = groupName === 'CONSTRAINT' ? '约束类参数 (决定能否执行)' :
+                                                            groupName === 'ADJUSTMENT' ? '调节类参数 (决定优选权重)' : '行为类参数 (决定系统表现)';
+                                              const color = groupName === 'CONSTRAINT' ? 'text-red-600 bg-red-50 border-red-100' :
+                                                            groupName === 'ADJUSTMENT' ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-purple-600 bg-purple-50 border-purple-100';
+                                              
+                                              return (
+                                                 <div key={groupName} className="space-y-3">
+                                                    <div className={`px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${color}`}>
+                                                       <div className={`w-1.5 h-1.5 rounded-full ${groupName === 'CONSTRAINT' ? 'bg-red-500' : groupName === 'ADJUSTMENT' ? 'bg-blue-500' : 'bg-purple-500'}`}></div>
+                                                       {label}
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                       {entries.map(([key, val]) => (
+                                                          <div key={key} className="bg-white rounded-[12px] p-3 border border-theme-border flex flex-col gap-1.5 hover:border-theme-primary/30 transition-all shadow-sm">
+                                                             <label className="text-[10px] text-theme-muted font-bold font-mono pl-1">{key}</label>
+                                                             <input 
+                                                               className="text-[13px] font-black text-theme-ink w-full border-b border-theme-border/50 pb-1 pt-1 focus:outline-none focus:border-theme-primary transition-all bg-transparent focus:bg-blue-50/20"
+                                                               value={val as string}
+                                                               onChange={(e) => handleUpdateStepConfig(step.id, key, e.target.value)}
+                                                             />
+                                                          </div>
+                                                       ))}
+                                                    </div>
+                                                 </div>
+                                              );
+                                           })}
+                                        </>
+                                     );
+                                  })() : (
+                                    <div className="text-center py-6 bg-white/50 border border-theme-border border-dashed rounded-[10px] text-[12px] text-theme-muted italic opacity-60">此执行动作目前暂未预设特殊的业务挂载参数，全部执行默认逻辑。</div>
                                   )}
                                </div>
                             </div>
@@ -2154,7 +2355,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                   }`}
                                 >
                                    {step.flowControl === 'CONTINUE' ? (
-                                      <><LinkIcon className="w-3.5 h-3.5" /> 业务维度累加 (Join)</>
+                                      <><LinkIcon className="w-3.5 h-3.5" /> 业务综合评分 (Join)</>
                                    ) : (
                                       <><ArrowDownRight className="w-3.5 h-3.5" /> 满足即止 / 寻址失败降级 (Fallback)</>
                                    )}
@@ -2174,7 +2375,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       <Plus className="w-6 h-6" />
                     </div>
                     <div className="flex flex-col items-center">
-                      <span className="text-[14px] font-bold text-theme-ink">追加业务执行算子节点 (Append Execution Node)</span>
+                      <span className="text-[14px] font-bold text-theme-ink">追加业务执行动作节点 (Append Execution Node)</span>
                       <span className="text-[11px] text-theme-muted opacity-60">定义新的过滤筛选与多维评分排序逻辑计算环</span>
                     </div>
                   </button>
@@ -2213,7 +2414,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     <p className="text-[11px] text-theme-muted mt-1">{rule.description || '无详细描述'}</p>
                     <div className="flex gap-4 mt-2">
                        <div className="text-[10px] text-theme-muted flex items-center gap-1">
-                          <GitBranch className="w-3 h-3" /> {rule.steps?.length || 0} 动作算子节点
+                          <GitBranch className="w-3 h-3" /> {rule.steps?.length || 0} 执行动作节点
                        </div>
                        <div className="text-[10px] text-theme-muted flex items-center gap-1">
                           <Search className="w-3 h-3" /> {rule.matchingCriteria?.length || 0} 前置触发器
@@ -2249,72 +2450,91 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
           switch (subject) {
             case 'LOCATION':
               return [
-                { key: 'maxDistance', label: '最大拣选动线距离 (Limit)', type: 'number', unit: 'm', placeholder: '500' },
-                { key: 'zonePreference', label: '库区优先策略 (Zoning)', type: 'select', options: ['自动(全局平衡)', '就近优先', '空位率优先', '订单任务聚合', '周转路径最优'] },
-                { key: 'congestionControl', label: '拥堵规避因子 (Traffic)', type: 'number', unit: '%', placeholder: '20' },
-                { key: 'tempTolerance', label: '温控波动容忍度 (Temp)', type: 'select', options: ['±0.5℃ (高精)', '±1.0℃ (标准)', '±2.0℃ (宽松)'] },
-                { key: 'capacityBuffer', label: '库位预留周转容积 (Buffer)', type: 'number', unit: '%', placeholder: '10' },
-                { key: 'aisleSorting', label: '巷道内拣选权重方向', type: 'select', options: ['顺动线', '逆动线', '交替蛇形'] }
+                { key: 'maxDistance', label: '最大拣选动线距离 (Limit)', type: 'number', unit: 'm', placeholder: '500', group: 'CONSTRAINT' },
+                { key: 'tempTolerance', label: '温控波动容忍度 (Temp)', type: 'select', options: ['±0.5℃ (高精)', '±1.0℃ (标准)', '±2.0℃ (宽松)'], group: 'CONSTRAINT' },
+                { key: 'zonePreference', label: '库区优先策略 (Zoning)', type: 'select', options: ['自动(全局平衡)', '就近优先', '空位率优先', '订单任务聚合', '周转路径最优'], group: 'ADJUSTMENT' },
+                { key: 'congestionControl', label: '拥堵规避因子 (Traffic)', type: 'number', unit: '%', placeholder: '20', group: 'ADJUSTMENT' },
+                { key: 'aisleSorting', label: '巷道内拣选权重方向', type: 'select', options: ['顺动线', '逆动线', '交替蛇形'], group: 'ADJUSTMENT' },
+                { key: 'capacityBuffer', label: '库位预留周转容积 (Buffer)', type: 'number', unit: '%', placeholder: '10', group: 'BEHAVIORAL' }
               ];
             case 'INVENTORY_LOT':
               return [
-                { key: 'fifoWeight', label: 'FIFO(先进先出)执行权重', type: 'number', unit: '%', placeholder: '100' },
-                { key: 'batchConsistency', label: '批次一致性校验 (Strict Lot)', type: 'boolean' },
-                { key: 'minExpiryDays', label: '效期硬性拦截阈值 (Shelf-Life)', type: 'number', unit: '天', placeholder: '30' },
-                { key: 'freshnessLevel', label: '生鲜等级准入 (Grade)', type: 'select', options: ['A级(极鲜)', 'B级(标准)', '通用'] },
-                { key: 'palletToPieceThreshold', label: '整托转拆零临界系数', type: 'number', unit: '%', placeholder: '70' },
-                { key: 'lotMixControl', label: '混批管控级别', type: 'select', options: ['严禁混批', '允许同SKU混批', '完全允许'] }
+                { key: 'minExpiryDays', label: '效期硬性拦截阈值 (Shelf-Life)', type: 'number', unit: '天', placeholder: '30', group: 'CONSTRAINT' },
+                { key: 'batchConsistency', label: '批次一致性校验 (Strict Lot)', type: 'boolean', group: 'CONSTRAINT' },
+                { key: 'lotMixControl', label: '混批管控级别', type: 'select', options: ['严禁混批', '允许同SKU混批', '完全允许'], group: 'CONSTRAINT' },
+                { key: 'fifoWeight', label: 'FIFO(先进先出)执行权重', type: 'number', unit: '%', placeholder: '100', group: 'ADJUSTMENT' },
+                { key: 'freshnessLevel', label: '生鲜等级准入 (Grade)', type: 'select', options: ['A级(极鲜)', 'B级(标准)', '通用'], group: 'ADJUSTMENT' },
+                { key: 'palletToPieceThreshold', label: '整托转拆零临界系数', type: 'number', unit: '%', placeholder: '70', group: 'BEHAVIORAL' }
               ];
             case 'EQUIPMENT':
               return [
-                { key: 'loadLimit', label: '设备任务负载上限', type: 'number', unit: '%', placeholder: '85' },
-                { key: 'rechargeThreshold', label: '低电量强制返场阈值', type: 'number', unit: '%', placeholder: '20' },
-                { key: 'speedMode', label: '作业运行能效模式', type: 'select', options: ['高能效(极速)', '标准平衡', '节能低噪'] }
+                { key: 'loadLimit', label: '设备任务负载上限', type: 'number', unit: '%', placeholder: '85', group: 'CONSTRAINT' },
+                { key: 'rechargeThreshold', label: '低电量强制返场阈值', type: 'number', unit: '%', placeholder: '20', group: 'CONSTRAINT' },
+                { key: 'speedMode', label: '作业运行能效模式', type: 'select', options: ['高能效(极速)', '标准平衡', '节能低噪'], group: 'ADJUSTMENT' }
               ];
             case 'ORDER_LINE':
               return [
-                { key: 'overReceiveTol', label: '溢收容忍度 (Tolerance %)', type: 'number', unit: '%', placeholder: '5' },
-                { key: 'splitAllowed', label: '允许在节点自动拆分 WO (Split)', type: 'boolean' },
-                { key: 'crossDockPriority', label: '越库(Cross-Dock)紧急系数', type: 'number', unit: 'P', placeholder: '10' },
-                { key: 'packingSequence', label: '堆叠顺序策略 (Sorting)', type: 'select', options: ['重下轻上 (Heavy-First)', '动线优先 (Route-First)', '体积填充率优先'] },
-                { key: 'priorityMapping', label: '子任务优先级映射表', type: 'select', options: ['跟随母单', '固定最高', '动态加权提升'] }
+                { key: 'allowOverReceive', label: '允许超量收货 (Over-Receive)', type: 'boolean', group: 'CONSTRAINT' },
+                { key: 'allowShortReceive', label: '允许缺量收货 (Short-Receive)', type: 'boolean', group: 'CONSTRAINT' },
+                { key: 'allowReverse', label: '允许冲销 (Reverse/Void)', type: 'boolean', group: 'CONSTRAINT' },
+                { key: 'pickingFaceRequired', label: '拣选面限制 (Picking Face)', type: 'boolean', group: 'CONSTRAINT', description: '无拣选面是否允许收货' },
+                { key: 'overReceiveTol', label: '溢收容忍度 (Tolerance %)', type: 'number', unit: '%', placeholder: '5', group: 'CONSTRAINT' },
+                { key: 'crossDockPriority', label: '越库(Cross-Dock)紧急系数', type: 'number', unit: 'P', placeholder: '10', group: 'ADJUSTMENT' },
+                { key: 'packingSequence', label: '堆叠顺序策略 (Sorting)', type: 'select', options: ['重下轻上 (Heavy-First)', '动线优先 (Route-First)', '体积填充率优先'], group: 'ADJUSTMENT' },
+                { key: 'autoFullInbound', label: '到期自动满单收货', type: 'boolean', group: 'BEHAVIORAL' },
+                { key: 'autoInbound', label: '是否自动入库 (Auto-Putaway)', type: 'boolean', group: 'BEHAVIORAL' },
+                { key: 'splitAllowed', label: '允许在节点自动拆分 WO (Split)', type: 'boolean', group: 'BEHAVIORAL' },
+                { key: 'priorityMapping', label: '子任务优先级映射表', type: 'select', options: ['跟随母单', '固定最高', '动态加权提升'], group: 'BEHAVIORAL' }
               ];
             case 'CONTEXT':
               return [
-                { key: 'timeout', label: '算子链计算超时心跳', type: 'number', unit: 'ms', placeholder: '1000' },
-                { key: 'auditRequired', label: '一货位一审计 (Cycle Count)', type: 'boolean' },
-                { key: 'fallbackMode', label: '寻址失败备选方案 (Failover)', type: 'select', options: ['抛出异常(阻断)', '切换至手动库区', '挂起等待补货'] }
+                { key: 'strictMode', label: '业务校验严谨度 (Control Level)', type: 'select', options: ['宽松(仅记录)', '标准(强提醒)', '严格(硬拦截)'], group: 'CONSTRAINT' },
+                { key: 'retryLimit', label: '失败自动重试次数', type: 'number', unit: '次', placeholder: '3', group: 'ADJUSTMENT' },
+                { key: 'autoSuspend', label: '异常自动挂起任务 (Auto-Suspend)', type: 'boolean', description: '触发拦截时自动挂起相关单据', group: 'BEHAVIORAL' },
+                { key: 'fallbackRoute', label: '拦截后处理路径', type: 'select', options: ['抛出异常(人工处理)', '自动切换备选策略', '跳过并执行下一动作'], group: 'BEHAVIORAL' }
               ];
             case 'OPERATOR':
               return [
-                { key: 'skillRequired', label: '操作技能要求 (Skill)', type: 'select', options: ['L1(实习)', 'L2(熟练)', 'L3(专家/资质)'] },
-                { key: 'safetyCheckStep', label: '作业前置安全强检', type: 'boolean' },
-                { key: 'shiftEndLeadTime', label: '班次结束前禁派单阀值', type: 'number', unit: 'min', placeholder: '30' }
+                { key: 'skillRequired', label: '操作技能要求 (Skill)', type: 'select', options: ['L1(实习)', 'L2(熟练)', 'L3(专家/资质)'], group: 'CONSTRAINT' },
+                { key: 'safetyCheckStep', label: '作业前置安全强检', type: 'boolean', group: 'CONSTRAINT' },
+                { key: 'shiftEndLeadTime', label: '班次结束前禁派单阀值', type: 'number', unit: 'min', placeholder: '30', group: 'BEHAVIORAL' }
               ];
             case 'CARRIER':
               return [
-                { key: 'stackingTolerance', label: '码垛溢位容忍度', type: 'number', unit: '%', placeholder: '5' },
-                { key: 'mixOrderAllowed', label: '允许合行/合批混装', type: 'boolean' },
-                { key: 'volumeUtilization', label: '最低体积装载率阈值', type: 'number', unit: '%', placeholder: '60' },
-                { key: 'carrierTypeLock', label: '强制载具选型约束', type: 'select', options: ['无限制', '保温箱专用', '原箱发货(不换箱)', '托盘/地堆'] }
+                { key: 'carrierTypeLock', label: '强制载具选型约束', type: 'select', options: ['无限制', '保温箱专用', '原箱发货(不换箱)', '托盘/地堆'], group: 'CONSTRAINT' },
+                { key: 'mixOrderAllowed', label: '允许合行/合批混装', type: 'boolean', group: 'CONSTRAINT' },
+                { key: 'volumeUtilization', label: '最低体积装载率阈值', type: 'number', unit: '%', placeholder: '60', group: 'ADJUSTMENT' },
+                { key: 'stackingTolerance', label: '码垛溢位容忍度', type: 'number', unit: '%', placeholder: '5', group: 'BEHAVIORAL' }
               ];
             case 'STAGING_AREA':
               return [
-                { key: 'maxWaitTime', label: '集货区最大滞留周期', type: 'number', unit: 'Hrs', placeholder: '4' },
-                { key: 'consolidationWindow', label: '波次合流集货时间窗', type: 'number', unit: 'min', placeholder: '60' },
-                { key: 'dedicatedLane', label: '独占发货道优先级', type: 'boolean' }
+                { key: 'dedicatedLane', label: '独占发货道优先级', type: 'boolean', group: 'CONSTRAINT' },
+                { key: 'consolidationWindow', label: '波次合流集货时间窗', type: 'number', unit: 'min', placeholder: '60', group: 'ADJUSTMENT' },
+                { key: 'maxWaitTime', label: '集货区最大滞留周期', type: 'number', unit: 'Hrs', placeholder: '4', group: 'BEHAVIORAL' }
               ];
             default:
               return [
-                { key: 'customParam', label: '自定义业务挂载参数', type: 'number', placeholder: '0' }
+                { key: 'customParam', label: '自定义业务挂载参数', type: 'number', placeholder: '0', group: 'ADJUSTMENT' }
               ];
           }
         })();
 
+        const groupedParams = availableParams.reduce((acc, param) => {
+          if (!acc[param.group]) acc[param.group] = [];
+          acc[param.group].push(param);
+          return acc;
+        }, {} as Record<string, typeof availableParams>);
+
+        const groupLabels = {
+          'CONSTRAINT': { label: '约束类参数 (筛选时用)', color: 'text-red-600', bg: 'bg-red-50' },
+          'ADJUSTMENT': { label: '调节类参数 (打分时用)', color: 'text-blue-600', bg: 'bg-blue-50' },
+          'BEHAVIORAL': { label: '行为类参数 (决策后用)', color: 'text-emerald-600', bg: 'bg-emerald-50' }
+        };
+
         return (
-          <div className="fixed inset-0 z-[100] flex justify-end animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-[250] flex justify-end animate-in fade-in duration-300">
             <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" onClick={() => setEditingParamsStepId(null)} />
-            <div className="relative w-[360px] bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="relative w-[380px] bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
               <div className="p-6 border-b border-theme-border flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
@@ -2338,62 +2558,75 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                <div className="space-y-6">
-                  {availableParams.map(param => (
-                    <div key={param.key} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-bold text-slate-700">{param.label}</label>
-                        {param.unit && <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded leading-none">{param.unit}</span>}
+                {Object.entries(groupLabels).map(([groupId, info]) => {
+                  const params = groupedParams[groupId];
+                  if (!params || params.length === 0) return null;
+
+                  return (
+                    <div key={groupId} className="space-y-4">
+                      <div className={`flex items-center gap-2 px-3 py-1.5 ${info.bg} ${info.color} rounded-lg`}>
+                        <div className={`w-1.5 h-3 rounded-full ${groupId === 'CONSTRAINT' ? 'bg-red-500' : groupId === 'ADJUSTMENT' ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
+                        <span className="text-[11px] font-black uppercase tracking-wider">{info.label}</span>
                       </div>
+                      <div className="space-y-6 pl-2">
+                        {params.map(param => (
+                          <div key={param.key} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[12px] font-bold text-slate-700">{param.label}</label>
+                              {param.unit && <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded leading-none">{param.unit}</span>}
+                            </div>
 
-                      {param.type === 'number' && (
-                        <div className="relative">
-                          <input 
-                            type="number"
-                            className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-4 text-[13px] font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
-                            placeholder={param.placeholder}
-                            value={step.config?.[param.key] ?? ''}
-                            onChange={(e) => handleUpdateStepConfig(step.id, param.key, e.target.value)}
-                          />
-                        </div>
-                      )}
+                            {param.type === 'number' && (
+                              <div className="relative">
+                                <input 
+                                  type="number"
+                                  className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-4 text-[13px] font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
+                                  placeholder={param.placeholder}
+                                  value={step.config?.[param.key] ?? ''}
+                                  onChange={(e) => handleUpdateStepConfig(step.id, param.key, e.target.value)}
+                                />
+                              </div>
+                            )}
 
-                      {param.type === 'select' && (
-                        <div className="relative">
-                          <select 
-                            className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-4 text-[13px] font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all appearance-none"
-                            value={step.config?.[param.key] ?? ''}
-                            onChange={(e) => handleUpdateStepConfig(step.id, param.key, e.target.value)}
-                          >
-                            <option value="">请选择类型</option>
-                            {param.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                          <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                        </div>
-                      )}
+                            {param.type === 'select' && (
+                              <div className="relative">
+                                <select 
+                                  className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-4 text-[13px] font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all appearance-none"
+                                  value={step.config?.[param.key] ?? ''}
+                                  onChange={(e) => handleUpdateStepConfig(step.id, param.key, e.target.value)}
+                                >
+                                  <option value="">请选择类型</option>
+                                  {param.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                              </div>
+                            )}
 
-                      {param.type === 'boolean' && (
-                        <div 
-                          className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${step.config?.[param.key] ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
-                          onClick={() => handleUpdateStepConfig(step.id, param.key, !step.config?.[param.key])}
-                        >
-                          <span className="text-[11px] font-medium text-slate-600">{param.description || '状态启用控制'}</span>
-                          <div className={`w-10 h-6 rounded-full relative transition-all ${step.config?.[param.key] ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${step.config?.[param.key] ? 'left-5' : 'left-1'}`} />
+                            {param.type === 'boolean' && (
+                              <div 
+                                className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${step.config?.[param.key] ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
+                                onClick={() => handleUpdateStepConfig(step.id, param.key, !step.config?.[param.key])}
+                              >
+                                <span className="text-[11px] font-medium text-slate-600">{param.description || '状态启用控制'}</span>
+                                <div className={`w-10 h-6 rounded-full relative transition-all ${step.config?.[param.key] ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${step.config?.[param.key] ? 'left-5' : 'left-1'}`} />
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
 
                 <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
                    <div className="flex items-center gap-2 mb-2 text-blue-700">
-                     <PlusCircle className="w-4 h-4" />
-                     <span className="text-[12px] font-bold">开发者提示</span>
+                     <AlertCircle className="w-4 h-4" />
+                     <span className="text-[12px] font-bold">配置指引</span>
                    </div>
                    <p className="text-[11px] text-blue-600/80 leading-relaxed font-medium">
-                     这些参数将作为计算上下文注入到本阶段的算法逻辑中。如果您定义了特定的 SQL 因子或 Script 因子，可以通过 <code>params['{availableParams[0].key}']</code> 直接读取这些配置。
+                     这些参数将作为业务上下文注入到当前执行动作中。如果该动作涉及复杂的条件判断（如：冷链、溢收、黑名单），系统会根据这些阈值实时决策。
                    </p>
                 </div>
               </div>
@@ -2497,7 +2730,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       </div>
                       
                       <h4 className="flex items-center gap-2 text-emerald-800 font-black uppercase tracking-tight border-b border-emerald-100 pb-2 mt-8">
-                          <LinkIcon className="w-4 h-4" /> 架构模式 2: 维度累加流 (Pipeline/Join)
+                          <LinkIcon className="w-4 h-4" /> 架构模式 2: 综合评分流 (Pipeline/Join)
                       </h4>
                       <p className="text-[13px] leading-relaxed">
                         当业务需要对库位进行 <b>“综合多维评分”</b> 时使用。逻辑是累加的。
@@ -2505,7 +2738,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       </p>
 
                       <h4 className="flex items-center gap-2 text-purple-800 font-black uppercase tracking-tight border-b border-purple-100 pb-2 mt-8">
-                          <ArrowDownRight className="w-4 h-4" /> 架构模式 3: 条件决策/跳转 (Jump)
+                          <ArrowDownRight className="w-4 h-4" /> 架构模式 3: 特殊通道决策 (Jump)
                       </h4>
                       <p className="text-[13px] leading-relaxed">
                         当识别到特定特征（如：VIP、大件、急单）时，直接通过 <b>Jump</b> 越过常规降级链。这能极大提升复杂策略的响应效率和配置灵活性。
@@ -2513,10 +2746,10 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     </div>
                     <div className="space-y-4">
                       <h4 className="flex items-center gap-2 text-red-800 font-black uppercase tracking-tight border-b border-red-100 pb-2">
-                          <ShieldCheck className="w-4 h-4" /> 安全边界: 全局红线 (Guardrails)
+                          <ShieldCheck className="w-4 h-4" /> 安全边界: 强制合规拦截 (Guardrails)
                       </h4>
                       <p className="text-[13px] leading-relaxed">
-                        独立于业务逻辑的 <b>“硬物理限制”</b>。无论上层业务如何寻址，全局红线具有最高否决权。
+                        独立于业务逻辑的 <b>“硬物理限制”</b>。无论上层业务如何寻址，强制合规拦截具有最高否决权。
                         <br/>常见应用：<code className="bg-slate-100 px-1 text-[11px]">巷道故障临时封锁</code>、<code className="bg-slate-100 px-1 text-[11px]">消防疏散通道禁止侵占</code>。
                       </p>
                       
@@ -2528,18 +2761,18 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       </p>
 
                       <h4 className="flex items-center gap-2 text-blue-900 font-bold text-[14px] mt-8 bg-blue-50/50 p-2 rounded">
-                        <GitBranch className="w-4 h-4 ml-1" /> 算子节点执行逻辑 (Step Relationships)
+                        <GitBranch className="w-4 h-4 ml-1" /> 动作节点执行逻辑 (Step Relationships)
                       </h4>
                       <ul className="text-[12px] space-y-2 mt-2 list-disc list-inside">
                         <li><b>满足即止 (Terminate)</b>: 找到最优库位立即锁定并返回。</li>
-                        <li><b>累加流转 (Continue/Join)</b>: 结果将传递给下个算子交叉计算。</li>
+                        <li><b>综合评分流转 (Continue/Join)</b>: 结果将传递给下个执行动作交叉计算。</li>
                       </ul>
 
                       <h4 className="flex items-center gap-2 text-slate-900 font-bold text-[14px] mt-8 bg-slate-100 p-2 rounded">
-                        <Settings className="w-4 h-4 ml-1" /> 节点参数与算子上下文 (Param Context)
+                        <Settings className="w-4 h-4 ml-1" /> 节点参数与动作上下文 (Param Context)
                       </h4>
                       <p className="text-[13px] leading-relaxed">
-                        每个算子步骤的参数是 <b>“主体驱动 (Subject-Driven)”</b> 的。系统会根据步骤聚焦的主体（如：库位、库存、资源）自动装配不同的业务参数，这些参数最终作为上下文注入算法引擎或脚本。
+                        每个动作步骤的参数是 <b>“主体驱动 (Subject-Driven)”</b> 的。系统会根据步骤聚焦的主体（如：库位、库存、资源）自动装配不同的业务参数，这些参数最终作为上下文注入算法引擎或脚本。
                       </p>
                     </div>
                 </div>
@@ -2574,7 +2807,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       <ShieldAlert className="w-6 h-6" />
                     </div>
                     <div>
-                      <h2 className="text-[18px] font-black text-red-900 tracking-tight m-0 uppercase">全局策略红线管控 (Global Guardrails)</h2>
+                      <h2 className="text-[18px] font-black text-red-900 tracking-tight m-0 uppercase">全局策略拦截管控 (Global Guardrails)</h2>
                       <p className="text-[11px] text-red-600/70 font-bold">这些约束具有最高优先级，强制应用于当前策略下的所有维度寻址。</p>
                     </div>
                 </div>
@@ -2624,7 +2857,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
               <div className="p-8 border-t border-red-50 bg-red-50/10 flex justify-end gap-3">
                   <Button variant="ghost" onClick={() => setIsGuardrailsOpen(false)}>暂不保存</Button>
                   <Button variant="primary" className="bg-red-600 hover:bg-red-700 text-white shadow-red-200" onClick={() => setIsGuardrailsOpen(false)}>
-                      更新全局红线设置
+                      更新合规拦截设置
                   </Button>
               </div>
             </motion.div>
@@ -2649,7 +2882,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                           <ShieldAlert className="w-8 h-8 text-white" />
                        </div>
                        <div>
-                          <h2 className="text-[24px] font-black tracking-tight uppercase">全局阻断与物理红线管控</h2>
+                          <h2 className="text-[24px] font-black tracking-tight uppercase">全局阻断与强制拦截管控</h2>
                           <p className="text-[14px] opacity-80 font-medium">Global Strategy Guardrails (Physical Enforcement Layer)</p>
                        </div>
                     </div>
@@ -2665,7 +2898,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                        <Info className="w-5 h-5 text-red-600" />
                     </div>
                     <div className="flex-1">
-                       <h3 className="text-[15px] font-bold text-red-900 mb-1">什么是全局管控红线？</h3>
+                       <h3 className="text-[15px] font-bold text-red-900 mb-1">什么是全局合规红线？</h3>
                        <p className="text-[13px] text-red-700 leading-relaxed font-medium">
                           此图层独立于具体的上架或分配策略。无论业务规则如何配置，凡是触发全局红线的路径（如禁入维护通道、消防预留位、非合规供应商等）都将在底层被<b>硬截断</b>，确保系统物理安全与基线合规。
                        </p>
@@ -2708,7 +2941,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                       };
                                    });
                                 }}>
-                                   {gr.active ? '停用此红线' : '立即强制执行'}
+                                   {gr.active ? '停用此拦截' : '立即强制执行'}
                                 </Button>
                              </div>
                           </div>
@@ -2717,7 +2950,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                        <div className="py-20 flex flex-col items-center justify-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                           <ShieldCheck className="w-12 h-12 text-slate-200 mb-4" />
                           <p className="text-slate-400 font-bold text-[14px]">暂未定义任何全局管控策略</p>
-                          <Button variant="ghost" className="mt-4 text-[12px] font-bold">+ 定义第一条红线规约</Button>
+                          <Button variant="ghost" className="mt-4 text-[12px] font-bold">+ 定义第一条合规拦截</Button>
                        </div>
                     )}
                  </div>

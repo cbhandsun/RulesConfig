@@ -54,7 +54,7 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
       <div className="w-full max-w-5xl">
         <header className="mb-6 flex items-end justify-between">
           <div>
-            <h1 className="text-2xl font-semibold mb-2">算子与因子管理 (Factor Management)</h1>
+            <h1 className="text-2xl font-semibold mb-2">业务偏好与约束管理 (Constraints & Preferences)</h1>
             <p className="text-theme-muted text-[13px] max-w-2xl leading-relaxed">
               统一管理并维护底层调度引擎所需的各项计算因子。可配置自定义公式、归一化权重计算方法，支持扩展并注入至前端策略画布中。
               <button 

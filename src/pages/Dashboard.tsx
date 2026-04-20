@@ -60,7 +60,7 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
            <div>
                <h3 className="text-[14px] font-bold tracking-wide uppercase opacity-90">调度中心核心原理：行业级 4-Tier 业务流控架构</h3>
                <p className="text-[12px] text-white/60 mt-2 leading-relaxed max-w-[800px]">
-                 系统采用顶尖 WMS (MAWM) 标准的 <b>策略面(Matrix) ➔ 执行序列(Sequence) ➔ 约束限制(Constraints) ➔ 评估优化器(Optimizers)</b> 四层拓扑。
+                 系统采用顶尖 WMS (MAWM) 标准的 <b>策略面(Matrix) ➔ 执行流(Stream) ➔ 硬性约束(Hard Constraints) ➔ 业务偏好评估(Business Preferences)</b> 四层拓扑。
                  <span className="mx-2 opacity-30">|</span>
                  在此页面，您可以选择一个宏观 <b>业务策略</b>，并为其编排降级处理序列。
                </p>

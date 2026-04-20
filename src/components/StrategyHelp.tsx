@@ -43,7 +43,7 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                    <div className="flex items-center gap-2 mb-2">
                       <GitBranch className="w-4 h-4 text-blue-200" />
-                      <span className="text-[13px] font-bold">L2: 寻址序列流水线 (Search Sequence)</span>
+                      <span className="text-[13px] font-bold">L2: 寻址流水线 (Search Stream)</span>
                    </div>
                    <p className="text-[11px] text-white/80">
                      <b>执行层</b>：编辑器顶部的 <b>Waterfall 链路</b>。定义了多个“维度”的先后执行顺序与降级逻辑（D1 ➔ D2 ➔ D3）。
@@ -57,7 +57,7 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                       <span className="text-[13px] font-bold text-slate-800">L3: 业务逻辑维度 (Strategic Dimension)</span>
                    </div>
                    <p className="text-[11px] text-slate-500 italic">
-                     <b>原子层</b>：链路上的<b>规则卡片节点</b>。每个节点负责一个具体的管控逻辑（如 QA、温控、物理约束）。每个维度可以包含多个过滤算子与评分因子。
+                     <b>原子层</b>：链路上的<b>规则卡片节点</b>。每个节点负责一个具体的管控逻辑（如 QA、温控、物理约束）。每个维度可以包含多个硬性约束与业务偏好。
                    </p>
                  </div>
               </div>
@@ -72,8 +72,8 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                 <p className="font-bold mb-2">为什么有时会觉得这两个概念混淆？</p>
                 在传统的简单 WMS 中，往往一个寻址序列就对应一个固定的逻辑。但在 MAWM 等现代系统中：
                 <ul className="list-disc ml-4 space-y-1 mt-2">
-                  <li><b>寻址序列 (Sequence)</b> 是执行的<b>「管道」</b>。它决定了系统失败后如何从 D1 降级到 D2。它是动态的关系集合。</li>
-                  <li><b>业务维度 (Dimension)</b> 是执行的<b>「算子节点」</b>。它是静态的逻辑模块，可以被复用。</li>
+                  <li><b>筛选优选序列 (Sequence)</b> 是执行的<b>「管道」</b>。它决定了系统失败后如何从 D1 降级到 D2。它是动态的关系集合。</li>
+                  <li><b>业务评分维度 (Dimension)</b> 是执行的<b>「执行动作节点」</b>。它是静态的逻辑模块，可以被复用。</li>
                 </ul>
                 <p className="mt-2 text-slate-500 italic">
                   * 因此，顶部的可视化链路是“寻址序列”，而链路上的每一个“节点”都是一个“业务维度”。
@@ -108,14 +108,14 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                  {/* Tier 3 */}
                  <div className="relative pl-10">
                     <div className="absolute left-[11px] top-1 w-2 h-2 rounded-full bg-emerald-500 border-[3px] border-white ring-2 ring-emerald-100"></div>
-                    <h5 className="text-[12px] font-bold text-slate-800">控制项 C: 限制约束 (Constraints / Filters)</h5>
+                    <h5 className="text-[12px] font-bold text-slate-800">控制项 C: 硬性约束 (Hard Constraints / Filters)</h5>
                     <p className="text-[11px] text-slate-500 mt-1">物理红线。如温度带、重量、高度约束。不满足即被剔除。</p>
                  </div>
                  
                  {/* Tier 4 */}
                  <div className="relative pl-10 pb-2">
                     <div className="absolute left-[11px] top-1 w-2 h-2 rounded-full bg-orange-500 border-[3px] border-white ring-2 ring-orange-100"></div>
-                    <h5 className="text-[12px] font-bold text-slate-800">控制项 D: 评估优化器 (Optimizers / Sorters)</h5>
+                    <h5 className="text-[12px] font-bold text-slate-800">控制项 D: 业务偏好评估 (Optimizers / Sorters)</h5>
                     <p className="text-[11px] text-slate-500 mt-1">权重算法。如最短动线、最先出库。负责在可达资源中择优。</p>
                  </div>
               </div>
@@ -128,11 +128,44 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-blue-600">
                 <Layers className="w-5 h-5" />
-                <h4 className="text-[14px] font-black uppercase tracking-wider">算法编排：执行阶段漏斗 (Sequence Nodes)</h4>
+                <h4 className="text-[14px] font-black uppercase tracking-wider">架构层次：从场景到原子动作</h4>
               </div>
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                执行流内的节点遵循 <b>“由硬到软”</b> 的过滤与评分逻辑。
+                在编辑器中，您正在通过三层嵌套结构来构建复杂的自动化逻辑：
               </p>
+              
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <LayoutGrid className="w-4 h-4 text-slate-400" />
+                    <span className="text-[12px] font-bold text-slate-800">1. 策略 (Strategy) - 业务场景</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">顶层容器，定义如“生鲜采购入库”。它决定了何时触发这套逻辑。</p>
+                </div>
+
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <GitBranch className="w-4 h-4 text-blue-500" />
+                    <span className="text-[12px] font-bold text-blue-800">2. 规则 (Rule) - 业务维度/阶段</span>
+                  </div>
+                  <p className="text-[11px] text-blue-600/70">横向流水线上的卡片。代表一个决策阶段（如：先看温控，再看动线）。支持降级流转。</p>
+                </div>
+
+                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap className="w-4 h-4 text-indigo-500" />
+                    <span className="text-[12px] font-bold text-indigo-800">3. 步骤 (Step) - 原子执行动作</span>
+                  </div>
+                  <p className="text-[11px] text-indigo-600/70">规则内部的每一行。包含具体的“硬性过滤”与“软性评分”。是最终计算出结果的原子单元。</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 text-blue-600">
+                <Layers className="w-5 h-5" />
+                <h4 className="text-[14px] font-black uppercase tracking-wider">执行编排：筛选与优选漏斗</h4>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                   <div className="text-[11px] font-black text-slate-400 mb-2 uppercase tracking-tight">第一层：硬性约束法则</div>

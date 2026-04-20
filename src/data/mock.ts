@@ -95,7 +95,7 @@ export const mockStrategies: StrategyDetail[] = [
     guardrails: [
       {
         id: 'GR-EXPIRE-BLOCK',
-        name: '生鲜及食品临期红线强控 (BLOCK)',
+        name: '生鲜及食品临期强制合规拦截 (BLOCK)',
         description: '【逻辑解释】基于食品安全法，防止过期或临期商品流入门店。当商品剩余保质期占比低于预设阈值时，直接触发系统级拦截，不进入后续分配环节。',
         active: true,
         type: 'BLOCK',
@@ -188,6 +188,823 @@ export const mockStrategies: StrategyDetail[] = [
             sorters: [
               { factorId: 'fact-route-dist', factorName: '路径行驶距离', weight: 100, direction: 'ASC' }
             ],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'TERMINATE'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-INBOUND-PURCHASE',
+    name: '【收货策略】采购入库收货策略 (Purchase Inbound)',
+    category: 'RECEIVING',
+    primarySubject: 'ORDER_LINE',
+    owner: '供应链收货组',
+    scenario: '【业务场景】适用于常规供应商送货入库。',
+    version: 'v2.1.0',
+    status: 'ACTIVE',
+    priority: 80,
+    rules: [
+      {
+        id: 'rule-pur-1',
+        name: '寻址动作 1：采购收货准入拦截',
+        enabled: true,
+        priorityGroup: '准入阶段',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-pur-1',
+            name: '采购拦截算子',
+            targetSubject: 'ORDER_LINE',
+            filters: [
+              { id: 'f-pur-1', field: '允许超收校验', operator: '==', value: '禁止超收' },
+              { id: 'f-pur-2', field: '拣选面限制', operator: '==', value: '必须存在拣选面' }
+            ],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "allowOverReceive": false,
+              "allowShortReceive": true,
+              "allowReverse": true,
+              "pickingFaceRequired": true,
+              "autoFullInbound": false,
+              "autoInbound": false
+            }
+          }
+        ]
+      },
+      {
+        id: 'rule-pur-2',
+        name: '寻址动作 2：储位指派 (SH)',
+        type: 'DIMENSION',
+        enabled: true,
+        priorityGroup: '指派阶段',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-pur-2-1',
+            name: '人工指定收货位寻源',
+            description: '优先级最高。检查作业人员在 PDA 或工作台上是否手动预设了目标储位。',
+            targetSubject: 'LOCATION',
+            filters: [
+              { id: 'f-pur-sh-1', field: '用户预设位置', operator: '!=', value: 'null' }
+            ],
+            sorters: [
+              { factorId: 'fact-manual-preset-loc', factorName: '用户指定收货位置权重', weight: 100, direction: 'DESC' }
+            ],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: {
+              "priority": "MANUAL_OVERRIDE",
+              "impactType": "BEHAVIORAL"
+            }
+          },
+          {
+            id: 'st-pur-2-2',
+            name: 'SKU 主档默认收货位寻源',
+            description: '降级第一级。当无人工指定时，自动匹配该商品在主数据中预设的专属收货道口或存储区。',
+            targetSubject: 'LOCATION',
+            filters: [
+              { id: 'f-pur-sh-2', field: 'SKU默认收货位', operator: '!=', value: 'null' }
+            ],
+            sorters: [
+              { factorId: 'fact-sku-inbound-loc', factorName: 'SKU 主档默认收货区', weight: 100, direction: 'DESC' }
+            ],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: {
+              "priority": "SKU_MASTER_DEFAULT",
+              "impactType": "BEHAVIORAL"
+            }
+          },
+          {
+            id: 'st-pur-2-3',
+            name: '订单类型兜底收货位寻源',
+            description: '最终兜底逻辑。根据采购单类型（如：常规采购 vs 紧急采购）指派至对应的默认收货缓冲区。',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [
+              { factorId: 'fact-doctype-inbound-loc', factorName: '单据类型兜底收货位', weight: 100, direction: 'DESC' }
+            ],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'TERMINATE',
+            config: {
+              "priority": "DOC_TYPE_FALLBACK",
+              "impactType": "BEHAVIORAL",
+              "zonePreference": "就近优先 (SH)"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-INBOUND-TRANSFER',
+    name: '【收货策略】调拨入库收货策略 (Transfer Inbound)',
+    category: 'RECEIVING',
+    primarySubject: 'ORDER_LINE',
+    owner: '库存调度组',
+    scenario: '【业务场景】适用于大仓或库间调拨入库。',
+    version: 'v1.2.0',
+    status: 'ACTIVE',
+    priority: 75,
+    rules: [
+      {
+        id: 'rule-trans-1',
+        name: '寻址动作 1：调拨收货准入拦截',
+        enabled: true,
+        priorityGroup: '准入阶段',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-trans-1',
+            name: '调拨拦截算子',
+            targetSubject: 'ORDER_LINE',
+            filters: [
+              { id: 'f-trans-1', field: '允许超收校验', operator: '==', value: '禁止超收' },
+              { id: 'f-trans-2', field: '允许冲销校验', operator: '==', value: '禁止冲销' },
+              { id: 'f-trans-3', field: '拣选面限制', operator: '==', value: '必须存在拣选面' }
+            ],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "allowOverReceive": false,
+              "allowShortReceive": true,
+              "allowReverse": false,
+              "pickingFaceRequired": true,
+              "autoInbound": false
+            }
+          }
+        ]
+      },
+      {
+        id: 'rule-trans-2',
+        name: '寻址动作 2：储位指派 (SH)',
+        enabled: true,
+        priorityGroup: '指派阶段',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-trans-2',
+            name: '储位路由算子',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: { "zonePreference": "就近优先 (SH)" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-INBOUND-DIRECT',
+    name: '【收货策略】直送自动入库收货策略 (Direct Inbound)',
+    category: 'RECEIVING',
+    primarySubject: 'ORDER_LINE',
+    owner: '越库中心',
+    scenario: '【业务场景】直送商品收货，收货即自动入库。',
+    version: 'v1.5.0',
+    status: 'ACTIVE',
+    priority: 85,
+    rules: [
+      {
+        id: 'rule-dir-1',
+        name: '寻址动作 1：直送收货准入拦截',
+        enabled: true,
+        priorityGroup: '准入阶段',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-dir-1',
+            name: '直送拦截算子',
+            targetSubject: 'ORDER_LINE',
+            filters: [
+              { id: 'f-dir-1', field: '允许超收校验', operator: '==', value: '禁止超收' },
+              { id: 'f-dir-2', field: '拣选面限制', operator: '==', value: '必须存在拣选面' }
+            ],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "allowOverReceive": false,
+              "allowShortReceive": true,
+              "allowReverse": true,
+              "pickingFaceRequired": true,
+              "autoInbound": true
+            }
+          }
+        ]
+      },
+      {
+        id: 'rule-dir-2',
+        name: '寻址动作 2：储位指派 (SH)',
+        enabled: true,
+        priorityGroup: '指派阶段',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-dir-2',
+            name: '储位路由算子',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: { "zonePreference": "就近优先 (SH)" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-INBOUND-CROSSDOCK',
+    name: '【收货策略】货到即配收货策略 (Cross-Docking)',
+    category: 'RECEIVING',
+    primarySubject: 'ORDER_LINE',
+    owner: '越库运营组',
+    scenario: '【业务场景】货到即配场景，直接进入越库区。',
+    version: 'v2.0.0',
+    status: 'ACTIVE',
+    priority: 90,
+    rules: [
+      {
+        id: 'rule-cd-1',
+        name: '寻址动作 1：越库收货准入拦截',
+        enabled: true,
+        priorityGroup: '准入阶段',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-cd-1',
+            name: '越库拦截算子',
+            targetSubject: 'ORDER_LINE',
+            filters: [
+              { id: 'f-cd-1', field: '允许超收校验', operator: '==', value: '禁止超收' },
+              { id: 'f-cd-2', field: '拣选面限制', operator: '==', value: '无限制' }
+            ],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "allowOverReceive": false,
+              "allowShortReceive": true,
+              "allowReverse": true,
+              "pickingFaceRequired": false,
+              "autoInbound": false
+            }
+          }
+        ]
+      },
+      {
+        id: 'rule-cd-2',
+        name: '寻址动作 2：储位指派 (IN)',
+        enabled: true,
+        priorityGroup: '指派阶段',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-cd-2',
+            name: '越库储位指派',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: { "zonePreference": "就近优先 (IN)" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-INBOUND-RETURN-SALES',
+    name: '【收货策略】返配入库、销售退货收货策略',
+    category: 'RECEIVING',
+    primarySubject: 'ORDER_LINE',
+    owner: '售后组',
+    scenario: '【业务场景】处理门店返配或消费者退货。',
+    version: 'v3.0.1',
+    status: 'ACTIVE',
+    priority: 70,
+    rules: [
+      {
+        id: 'rule-ret-1',
+        name: '寻址动作 1：退货收货准入拦截',
+        enabled: true,
+        priorityGroup: '准入阶段',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-ret-1',
+            name: '退货拦截算子',
+            targetSubject: 'ORDER_LINE',
+            filters: [
+              { id: 'f-ret-1', field: '允许超量校验', operator: '==', value: '禁止超收' },
+              { id: 'f-ret-2', field: '允许缺量校验', operator: '==', value: '禁止缺收' },
+              { id: 'f-ret-3', field: '允许冲销校验', operator: '==', value: '禁止冲销' }
+            ],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "allowOverReceive": false,
+              "allowShortReceive": false,
+              "allowReverse": false,
+              "pickingFaceRequired": false,
+              "autoFullInbound": true,
+              "autoInbound": false
+            }
+          }
+        ]
+      },
+      {
+        id: 'rule-ret-2',
+        name: '寻址动作 2：储位指派 (THSH)',
+        enabled: true,
+        priorityGroup: '指派阶段',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-ret-2',
+            name: '退货储位指派',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: { "zonePreference": "就近优先 (THSH)" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-INBOUND-INTER-WH',
+    name: '【收货策略】仓间调拨二次收货收货策略',
+    category: 'RECEIVING',
+    primarySubject: 'ORDER_LINE',
+    owner: '调度中心',
+    scenario: '【业务场景】仓间二次收货场景。',
+    version: 'v1.0.0',
+    status: 'ACTIVE',
+    priority: 65,
+    rules: [
+      {
+        id: 'rule-iwh-1',
+        name: '寻址动作 1：二次收货准入拦截',
+        enabled: true,
+        priorityGroup: '准入阶段',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-iwh-1',
+            name: '二次收货拦截算子',
+            targetSubject: 'ORDER_LINE',
+            filters: [
+              { id: 'f-iwh-1', field: '允许缺量校验', operator: '==', value: '禁止缺收' }
+            ],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "allowOverReceive": false,
+              "allowShortReceive": false,
+              "allowReverse": false,
+              "pickingFaceRequired": false,
+              "autoFullInbound": true,
+              "autoInbound": false
+            }
+          }
+        ]
+      },
+      {
+        id: 'rule-iwh-2',
+        name: '寻址动作 2：储位指派 (SCDCL)',
+        enabled: true,
+        priorityGroup: '指派阶段',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-iwh-2',
+            name: '二次收货储位指派',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: { "zonePreference": "就近优先 (SCDCL)" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-INBOUND-CLAIM-STD',
+    name: '【收货策略】申偿收货收货策略',
+    category: 'RECEIVING',
+    primarySubject: 'ORDER_LINE',
+    owner: '财务组',
+    scenario: '【业务场景】普通申偿收货。',
+    version: 'v1.0.0',
+    status: 'ACTIVE',
+    priority: 60,
+    rules: [
+      {
+        id: 'rule-clm-1',
+        name: '寻址动作 1：申偿准入拦截',
+        enabled: true,
+        priorityGroup: '准入阶段',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-clm-1',
+            name: '申偿拦截算子',
+            targetSubject: 'ORDER_LINE',
+            filters: [],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "allowOverReceive": false,
+              "allowShortReceive": false,
+              "allowReverse": false,
+              "pickingFaceRequired": false,
+              "autoFullInbound": true,
+              "autoInbound": false
+            }
+          }
+        ]
+      },
+      {
+        id: 'rule-clm-2',
+        name: '寻址动作 2：储位指派 (SCSH)',
+        enabled: true,
+        priorityGroup: '指派阶段',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-clm-2',
+            name: '申偿储位指派',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: { "zonePreference": "就近优先 (SCSH)" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-INBOUND-CLAIM-QUALITY',
+    name: '【收货策略】质量申偿收货收货策略',
+    category: 'RECEIVING',
+    primarySubject: 'ORDER_LINE',
+    owner: '质检组',
+    scenario: '【业务场景】质量申偿收货场景。',
+    version: 'v1.0.0',
+    status: 'ACTIVE',
+    priority: 55,
+    rules: [
+      {
+        id: 'rule-qclm-1',
+        name: '寻址动作 1：质量申偿准入拦截',
+        enabled: true,
+        priorityGroup: '准入阶段',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-qclm-1',
+            name: '质量申偿拦截算子',
+            targetSubject: 'ORDER_LINE',
+            filters: [],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "allowOverReceive": false,
+              "allowShortReceive": false,
+              "allowReverse": false,
+              "pickingFaceRequired": false,
+              "autoFullInbound": true,
+              "autoInbound": false
+            }
+          }
+        ]
+      },
+      {
+        id: 'rule-qclm-2',
+        name: '寻址动作 2：储位指派 (ZLSCSH)',
+        enabled: true,
+        priorityGroup: '指派阶段',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-qclm-2',
+            name: '质量申偿储位指派',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: { "zonePreference": "就近优先 (ZLSCSH)" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-OMNI-FRESH-B2C',
+    name: '【出库策略】全渠道生鲜电商 B2C 弹性履约策略',
+    category: 'ALLOCATION',
+    primarySubject: 'INVENTORY_LOT',
+    owner: '全渠道履约中心',
+    scenario: '【业务场景】处理生鲜 B2C 全渠道订单。通过“分流阶段”进行决策，通过“分配阶段”进行择优。',
+    version: 'v4.2.0',
+    status: 'ACTIVE',
+    priority: 200,
+    rules: [
+      {
+        id: 'rule-omni-1-1-gate',
+        name: '规则 1.1：VIP 渠道分流决策',
+        type: 'GATE',
+        enabled: true,
+        priorityGroup: '阶段 1：订单决策分流',
+        flowControl: 'JUMP',
+        jumpTargetId: 'rule-omni-3-1-jit',
+        matchingCriteria: [
+          { id: 'mc-omni-1', field: '渠道类型', operator: 'IN', value: '美团,饿了么,极速达' }
+        ],
+        steps: [],
+        branches: [
+          { 
+            id: 'br-vip', 
+            conditionLabel: 'VIP/极速达订单', 
+            targetRuleId: 'rule-omni-3-1-jit', 
+            criteria: [
+              { id: 'brc-vip-1', field: '订单等级', operator: '==', value: 'VIP' }
+            ] 
+          }
+        ]
+      },
+      {
+        id: 'rule-omni-1-2-wave',
+        name: '规则 1.2：常规波次聚合逻辑',
+        enabled: true,
+        priorityGroup: '阶段 1：订单决策分流',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-omni-1-2-1',
+            name: '波次池水位校验',
+            targetSubject: 'ORDER_LINE',
+            filters: [],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'CONTINUE',
+            config: { "maxWaveSize": 50 }
+          }
+        ]
+      },
+      {
+        id: 'rule-omni-2-1-hard',
+        name: '规则 2.1：库存效期与温层硬拦截',
+        enabled: true,
+        priorityGroup: '阶段 2：库存智能分配',
+        flowControl: 'CONTINUE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-omni-2-1-1',
+            name: 'GSP 效期强控',
+            targetSubject: 'INVENTORY_LOT',
+            filters: [{ id: 'f-omni-exp', field: '剩余效期比例', operator: '>=', value: '20%' }],
+            sorters: [],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: { "minExpiryDays": 30 }
+          }
+        ]
+      },
+      {
+        id: 'rule-omni-2-2-smart',
+        name: '规则 2.2：清尾与动线择优',
+        enabled: true,
+        priorityGroup: '阶段 2：库存智能分配',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-omni-2-2-1',
+            name: '库位热度打分',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [
+              { factorId: 'fact-clear', factorName: '清尾优先', weight: 60, direction: 'DESC' },
+              { factorId: 'fact-dist', factorName: '就近优先', weight: 40, direction: 'ASC' }
+            ],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE',
+            config: { "zonePreference": "就近优先" }
+          }
+        ]
+      },
+      {
+        id: 'rule-omni-3-1-jit',
+        name: '规则 3.1：前置仓 JIT 锁定',
+        enabled: true,
+        priorityGroup: '阶段 3：极速履约',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-omni-3-1-1',
+            name: 'JIT 库区寻址',
+            targetSubject: 'LOCATION',
+            filters: [{ id: 'f-omni-jit', field: '库区属性', operator: '==', value: '前置分拣区' }],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'STG-COMPLEX-INBOUND-DC',
+    name: '【收货上架】分销中心多级降级智能寻址策略 (Precision & Fallback)',
+    category: 'PUTAWAY',
+    primarySubject: 'LOCATION',
+    owner: 'DC运营指挥中心',
+    scenario: '【业务场景】大型混合分销中心。支持“AS/RS ➡️ 标准区 ➡️ 溢出区”三级自动降级。每一级包含多个细分业务场景与多步骤精密校验。',
+    version: 'v5.1.0',
+    status: 'ACTIVE',
+    priority: 300,
+    rules: [
+      {
+        id: 'rule-dc-p1-1',
+        name: '规则 1.1：自动化冷链立库 (AS/RS Cold)',
+        type: 'DIMENSION',
+        enabled: true,
+        priorityGroup: '第一阶段：极致精细寻址 (Precision)',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [{ id: 'mc-dc-1', field: '存储环境', operator: '==', value: 'COLD' }],
+        steps: [
+          {
+            id: 'st-dc-p1-1-1',
+            name: '托盘/载具规格强检',
+            targetSubject: 'CARRIER',
+            filters: [{ id: 'f-dc-1', field: '载具高度', operator: '<=', value: '1.8m' }],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'CONTINUE'
+          },
+          {
+            id: 'st-dc-p1-1-2',
+            name: '立库巷道温度实时校验',
+            targetSubject: 'CONTEXT',
+            filters: [{ id: 'f-dc-2', field: '巷道探针状态', operator: '==', value: 'NORMAL' }],
+            sorters: [{ factorId: 'fact-temp', factorName: '温度稳定性偏差', weight: 100, direction: 'ASC' }],
+            failoverAction: 'PIPELINE_NEXT',
+            flowControl: 'TERMINATE'
+          }
+        ]
+      },
+      {
+        id: 'rule-dc-p1-2',
+        name: '规则 1.2：重型重力货架 (Gravity Rack)',
+        type: 'DIMENSION',
+        enabled: true,
+        priorityGroup: '第一阶段：极致精细寻址 (Precision)',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [{ id: 'mc-dc-2', field: '商品重量等级', operator: '==', value: 'HEAVY' }],
+        steps: [
+          {
+            id: 'st-dc-p1-2-1',
+            name: '货位承重上限校验',
+            targetSubject: 'LOCATION',
+            filters: [{ id: 'f-dc-3', field: '承重余量', operator: '>=', value: '1000kg' }],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'CONTINUE'
+          },
+          {
+            id: 'st-dc-p1-2-2',
+            name: '库位周转率深度择优',
+            targetSubject: 'LOCATION',
+            sorters: [{ factorId: 'fact-turnover', factorName: '历史周转频次', weight: 80, direction: 'DESC' }],
+            filters: [],
+            failoverAction: 'PIPELINE_NEXT',
+            flowControl: 'TERMINATE'
+          }
+        ]
+      },
+      {
+        id: 'rule-dc-p2-1',
+        name: '规则 2.1：同 SKU 散货位合并 (Consolidation)',
+        type: 'DIMENSION',
+        enabled: true,
+        priorityGroup: '第二阶段：标准区域整合 (Standard)',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-dc-p2-1-1',
+            name: '已有散货库位扫描',
+            targetSubject: 'INVENTORY_LOT',
+            filters: [{ id: 'f-dc-4', field: '库位状态', operator: '==', value: 'PARTIAL' }],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'CONTINUE'
+          },
+          {
+            id: 'st-dc-p2-1-2',
+            name: '合并后填充率计算',
+            targetSubject: 'LOCATION',
+            filters: [{ id: 'f-dc-5', field: '预测填充率', operator: '<=', value: '95%' }],
+            sorters: [{ factorId: 'fact-fill', factorName: '空间利用率', weight: 100, direction: 'DESC' }],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'TERMINATE'
+          }
+        ]
+      },
+      {
+        id: 'rule-dc-p2-2',
+        name: '规则 2.2：动线与流量热度平抑',
+        type: 'DIMENSION',
+        enabled: true,
+        priorityGroup: '第二阶段：标准区域整合 (Standard)',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-dc-p2-2-1',
+            name: '月台路径最优计算',
+            targetSubject: 'LOCATION',
+            filters: [],
+            sorters: [{ factorId: 'fact-dist', factorName: '月台物理距离', weight: 70, direction: 'ASC' }],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'CONTINUE'
+          },
+          {
+            id: 'st-dc-p2-2-2',
+            name: '作业拥堵实时规避',
+            targetSubject: 'LOCATION',
+            filters: [{ id: 'f-dc-6', field: '当前巷道人数', operator: '<', value: '3' }],
+            sorters: [{ factorId: 'fact-traffic', factorName: '流量平衡因子', weight: 30, direction: 'DESC' }],
+            failoverAction: 'PIPELINE_NEXT',
+            flowControl: 'TERMINATE'
+          }
+        ]
+      },
+      {
+        id: 'rule-dc-p3-1',
+        name: '规则 3.1：应急溢出与越库路由',
+        type: 'DIMENSION',
+        enabled: true,
+        priorityGroup: '第三阶段：应急溢出兜底 (Overflow)',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [],
+        steps: [
+          {
+            id: 'st-dc-p3-1-1',
+            name: '待出库订单 JIT 预匹配',
+            targetSubject: 'ORDER_LINE',
+            filters: [{ id: 'f-dc-7', field: '2H内出库需求', operator: '>', value: '0' }],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'CONTINUE',
+            config: { "zonePreference": "越库暂存区 (CROSS-DOCK)" }
+          },
+          {
+            id: 'st-dc-p3-1-2',
+            name: '地堆应急位指派',
+            targetSubject: 'LOCATION',
+            filters: [{ id: 'f-dc-8', field: '库位类型', operator: '==', value: 'FLOOR_STACK' }],
+            sorters: [],
             failoverAction: 'ERROR_SUSPEND',
             flowControl: 'TERMINATE'
           }
@@ -587,6 +1404,7 @@ export const mockFactors: Factor[] = [
     name: '波次内 SKU 聚合重合度',
     targetObject: 'ORDER_LINE',
     category: 'LOGICAL',
+    impactType: 'ADJUSTMENT',
     description: '波次计算核心因子。量化一组订单中共同包含的 SKU 比例，重合度越高，越倾向于打包至同一拣货波次，提升边际拣选效率。',
     logic: { formula: 'Intersection(Orders.SKUs) / Union(Orders.SKUs)', unit: '%' }
   },
@@ -595,6 +1413,7 @@ export const mockFactors: Factor[] = [
     name: '设备次任务空跑距离',
     targetObject: 'EQUIPMENT',
     category: 'PHYSICAL',
+    impactType: 'ADJUSTMENT',
     description: '任务交叉(Interleaving)核心因子。计算上一个任务卸货点到下一个任务拾货点之间的导航距离，避免设备重载去、空载回。',
     logic: { formula: 'Route(DropLocation, NextPickLocation)', unit: 'm' }
   },
@@ -603,6 +1422,7 @@ export const mockFactors: Factor[] = [
     name: '集货道(Staging)可用承载率',
     targetObject: 'STAGING_AREA',
     category: 'PHYSICAL',
+    impactType: 'ADJUSTMENT',
     description: '发货路由控制因子。评估候选集货月台或缓存道的可用托盘位/体积，优先向空闲度高的发货门分配波次任务。',
     logic: { formula: '1 - (StagingOccupiedVol / StagingLimitVol)', unit: '%' }
   },
@@ -611,6 +1431,7 @@ export const mockFactors: Factor[] = [
     name: '剩余保质期占比 (FEFO%)', 
     targetObject: 'INVENTORY_LOT', 
     category: 'TEMPORAL',
+    impactType: 'ADJUSTMENT',
     description: '绝对核心生鲜因子。公式：(过期日期 - 当前时间) / 总保质期。值越小表示越迫切需出库，用于支持严格的 FEFO 管理。',
     logic: { formula: '(ExpiryDate - Now) / TotalShelfLife', unit: '%' }
   },
@@ -619,6 +1440,7 @@ export const mockFactors: Factor[] = [
     name: '入库时间轴 (FIFO)', 
     targetObject: 'INVENTORY_LOT', 
     category: 'TEMPORAL',
+    impactType: 'ADJUSTMENT',
     description: '标准先进先出。按货物实际进入仓库的时间排序，确保库存周转健康。',
     logic: { formula: 'InboundTimestamp', unit: 'Timestamp' }
   },
@@ -627,6 +1449,7 @@ export const mockFactors: Factor[] = [
     name: '库位温区匹配度系数', 
     targetObject: 'LOCATION', 
     category: 'PHYSICAL',
+    impactType: 'CONSTRAINT',
     description: '检查库位实际温控值（如感应器实时温度）与商品存储要求温层的吻合程度。',
     logic: { formula: 'abs(CurrentSensorTemp - TargetTempRange.Mid) < Range ? 1.0 : -999', unit: 'Score' }
   },
@@ -635,6 +1458,7 @@ export const mockFactors: Factor[] = [
     name: '门店陈列动线顺位 (Store-Friendly)', 
     targetObject: 'LOCATION', 
     category: 'LOGICAL',
+    impactType: 'ADJUSTMENT',
     description: '核心零售因子。对比候选库位在仓库的坐标与该零售单目标门店的陈列路径匹配分，旨在产出“上架友好”的拣货箱。',
     logic: { formula: 'abs(Loc.AisleIndex - StorePlanogram.PathIndex)', unit: 'Idx_Diff' }
   },
@@ -643,6 +1467,7 @@ export const mockFactors: Factor[] = [
     name: '货位利用率深度优化盘扣',
     targetObject: 'LOCATION',
     category: 'PHYSICAL',
+    impactType: 'ADJUSTMENT',
     description: '优先选择由于出库导致的“半空”库位进行上架，以减少库位碎片化（碎片整理）。',
     logic: { formula: '1 - (BinOccupiedVol / BinTotalVol)', unit: '%' }
   },
@@ -651,6 +1476,7 @@ export const mockFactors: Factor[] = [
     name: '易碎品保护包装系数',
     targetObject: 'INVENTORY_LOT',
     category: 'PHYSICAL',
+    impactType: 'BEHAVIORAL',
     description: '识别鸡蛋、玻璃瓶装奶等易碎品，在生成的搬运任务中自动增加“轻拿轻放”标记，并优化在容器中的堆码位置。',
     logic: { formula: 'ItemType == "FRAGILE" ? 100 : 0' }
   },
@@ -659,6 +1485,7 @@ export const mockFactors: Factor[] = [
     name: '货物负载重量等级', 
     targetObject: 'INVENTORY_LOT', 
     category: 'PHYSICAL',
+    impactType: 'ADJUSTMENT',
     description: '用于实现“重下轻上”物理堆叠逻辑。将重货因子分赋予大米、大桶油、成箱饮料等商品，在寻址时强制排序靠前。',
     logic: { formula: 'WeightPerUOM > RetailThresholdWeight ? 100 : 0', unit: 'Index' }
   },
@@ -667,6 +1494,7 @@ export const mockFactors: Factor[] = [
     name: '库位高度拣选密度', 
     targetObject: 'LOCATION', 
     category: 'PHYSICAL',
+    impactType: 'ADJUSTMENT',
     description: '优先选择在黄金作业高度区域（0.8m - 1.5m）的储位，以提高人工拣货效率并降低疲劳度。',
     logic: { formula: '1 / (abs(BinHeight - 1.2) + 0.1)', unit: 'Score' }
   },
@@ -675,6 +1503,7 @@ export const mockFactors: Factor[] = [
     name: '储位清空倾向度', 
     targetObject: 'INVENTORY_LOT', 
     category: 'LOGICAL',
+    impactType: 'ADJUSTMENT',
     description: '衡量订单需求量与现有储位存量的契合度。若分配后可清空储位以腾出库容，则获得加分。',
     logic: { formula: 'InventoryQty == OrderQty ? 1.0 : 0.0' }
   },
@@ -683,6 +1512,7 @@ export const mockFactors: Factor[] = [
     name: '门店动销 ABC 吻合度', 
     targetObject: 'INVENTORY_LOT', 
     category: 'LOGICAL',
+    impactType: 'ADJUSTMENT',
     description: '基于大数据分析的 SKU 动销热度画像与物理储位热度规划的匹配分。',
     logic: { formula: 'SkuABC == LocationABC ? 1.0 : 0.2' }
   },
@@ -691,6 +1521,7 @@ export const mockFactors: Factor[] = [
     name: '路径行驶距离 (Manhattan)', 
     targetObject: 'LOCATION', 
     category: 'PHYSICAL',
+    impactType: 'ADJUSTMENT',
     description: '计算作业员或移动设备从当前任务锚点到目标库位的物理行驶路径。',
     logic: { formula: 'abs(X2-X1) + abs(Y2-Y1)', unit: 'M' }
   },
@@ -699,6 +1530,7 @@ export const mockFactors: Factor[] = [
     name: '包装容器体积利用率', 
     targetObject: 'CARRIER', 
     category: 'PHYSICAL',
+    impactType: 'ADJUSTMENT',
     description: '在打包阶段计算。优先分配能最大化填满周转箱或物流台车的物品组合。',
     logic: { formula: '(AccVol + ItemVol) / CarrierLimitVol', unit: '%' }
   },
@@ -707,6 +1539,7 @@ export const mockFactors: Factor[] = [
     name: 'ASN 匹配度系数 (ASN Deviation)',
     targetObject: 'ORDER_LINE',
     category: 'COMPLIANCE',
+    impactType: 'CONSTRAINT',
     description: '衡量实际收货数量与预录入通知单（ASN）的差异百分比。差异越小表示供应商交付质量越高。',
     logic: { formula: 'abs(RecvQty - AsnQty) / AsnQty', unit: '%' }
   },
@@ -715,6 +1548,7 @@ export const mockFactors: Factor[] = [
     name: '收货品质准入等级 (Grading)',
     targetObject: 'INVENTORY_LOT',
     category: 'COMPLIANCE',
+    impactType: 'CONSTRAINT',
     description: '生鲜行业专用。收货时由品控人员根据新鲜度、外观分级（A/B/C），直接决定该批次的分配优先级。',
     logic: { formula: 'GradeScale[Item.InputGrade]', unit: 'Level' }
   },
@@ -723,6 +1557,7 @@ export const mockFactors: Factor[] = [
     name: '生鲜称重容差溢出率',
     targetObject: 'ORDER_LINE',
     category: 'COMPLIANCE',
+    impactType: 'CONSTRAINT',
     description: '针对散货生鲜（如活鱼、散装果蔬）。监控实际称重入库数与订单采购数的偏移，支持业务级的损耗分析。',
     logic: { formula: '(NetWeight - OrderedWeight) / OrderedWeight', unit: '%' }
   },
@@ -731,6 +1566,7 @@ export const mockFactors: Factor[] = [
     name: '用户指定收货位置权重',
     targetObject: 'CONTEXT',
     category: 'LOGICAL',
+    impactType: 'BEHAVIORAL',
     description: '作业员在 PDA 或工作台上手动指定的收货理货位。作为最高优先级，系统将忽略算法逻辑强制指向该位置以便于现场灵活调度。',
     logic: { formula: 'Context.ManualLocationId != null ? 1.0 : 0.0' }
   },
@@ -739,6 +1575,7 @@ export const mockFactors: Factor[] = [
     name: 'SKU 主档默认收货区',
     targetObject: 'LOCATION',
     category: 'LOGICAL',
+    impactType: 'BEHAVIORAL',
     description: '来源于 SKU 主数据配置。针对特定品项（如活鲜、高价值冻品）设定的固定收货道口，旨在保障特殊装卸设备或温控设施的就近原则。',
     logic: { formula: 'Location.Id == Sku.DefaultInboundLoc ? 1.0 : 0.0' }
   },
@@ -747,7 +1584,8 @@ export const mockFactors: Factor[] = [
     name: '单据类型兜底收货位',
     targetObject: 'LOCATION',
     category: 'LOGICAL',
-    description: '策略链的最终兜底逻辑。根据业务单据类型（如：大仓补货 vs 供应商直送）自动分配至对应的月台组或缓冲区。',
+    impactType: 'BEHAVIORAL',
+    description: '策略链的最终兜底逻辑。根据业务单据类型（如：大仓补货 vs 供应商直送）自动分配至对应的月台组 or 缓冲区。',
     logic: { formula: 'Location.Id == DocType.DefaultLoc ? 1.0 : 0.0' }
   }
 ];
@@ -799,7 +1637,7 @@ export const mockIndependentRules: StrategyRule[] = [
   },
   {
     id: 'RULE-IND-FOOD-SAFETY',
-    name: '【食安拦截】生鲜与非食混放红线规则',
+    name: '【食安拦截】生鲜与非食混放强制拦截规则',
     description: '【业务解释】严格执行食品安全合规准则。\n【强控逻辑】建立类目隔离矩阵。系统在寻址时强制执行 EXCLUDE 过滤器，严禁将食品分配至存储过洗涤剂、杀虫剂等化学品的库位及其周边相邻库位。',
     enabled: true,
     matchingCriteria: [{ id: 'mc-ind-fs-1', field: '行业 compliance', operator: '==', value: 'FOOD_SAFETY' }],

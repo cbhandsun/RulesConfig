@@ -61,10 +61,12 @@ export interface GlobalGuardrail {
 
 export interface StrategyDetail extends Strategy {
   rules: StrategyRule[];
-  guardrails?: GlobalGuardrail[]; // 该策略绑定的全局策略红线
+  guardrails?: GlobalGuardrail[]; // 该策略绑定的全局合规拦截规则
 }
 
 export type FactorTarget = 'CONTEXT' | 'LOCATION' | 'INVENTORY_LOT' | 'EQUIPMENT' | 'OPERATOR' | 'CARRIER' | 'ORDER_LINE' | 'STAGING_AREA';
+
+export type FactorImpactType = 'CONSTRAINT' | 'ADJUSTMENT' | 'BEHAVIORAL';
 
 export interface Factor {
   id: string;
@@ -72,6 +74,7 @@ export interface Factor {
   targetObject: FactorTarget; // 此因子所度量的业务对象
   description: string;
   category: 'PHYSICAL' | 'LOGICAL' | 'TEMPORAL' | 'EQUIPMENT' | 'COMPLIANCE'; // 因子分类
+  impactType: FactorImpactType; // 业务影响类型：约束类(准入)、调节类(评分)、行为类(执行)
   logic?: {
     formula: string;    // 计算公式 (表达式)
     unit?: string;      // 结果单位

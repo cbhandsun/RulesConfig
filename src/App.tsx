@@ -1,4 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+/**
+ * WMS 策略编排中心 (RulesConfig)
+ * 
+ * 本项目是一个工业级仓储管理系统 (WMS) 的策略编排平台。
+ * 核心架构包含：
+ * 1. 领域模型 (src/types/wms.ts): 定义策略、规则、算子及因子。
+ * 2. 策略编辑器 (src/pages/Editor.tsx): 可视化编排逻辑的核心组件。
+ * 3. 影子模拟 (src/pages/Simulator.tsx): 验证策略有效性的沙箱环境。
+ * 
+ * 详细文档请参考根目录下的 PROJECT_STRUCTURE.md。
+ */
 import { StrategyDetail, StrategyRule } from './types/wms';
 import { mockStrategies, mockIndependentRules } from './data/mock';
 import Dashboard from './pages/Dashboard';
@@ -132,7 +143,7 @@ function App() {
   };
 
   const handleSaveStrategy = (updatedStrategy: StrategyDetail) => {
-    setStrategies(prev => prev.map(s => s.id === updatedStrategy.id ? updatedStrategy : s));
+    setStrategies((prev: StrategyDetail[]) => prev.map((s: StrategyDetail) => s.id === updatedStrategy.id ? updatedStrategy : s));
     showToast('策略配置已持久化保存');
   };
 
@@ -204,7 +215,7 @@ function App() {
       </nav>
 
       {/* Main Area */}
-      <div className="flex-1 w-full bg-theme-bg relative z-10 flex flex-col overflow-hidden">
+      <div className="flex-1 w-full bg-theme-bg relative flex flex-col overflow-hidden">
         {currentView === 'DASHBOARD' && (
           <Dashboard 
             strategies={strategies} 
@@ -272,8 +283,8 @@ function App() {
               className="w-full h-10 px-3 rounded-[6px] border border-theme-border focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all text-sm bg-theme-bg"
               placeholder="例如: 冷链一号仓出库分段策略"
               value={newStrategyName}
-              onChange={(e) => setNewStrategyName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && confirmCreate()}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewStrategyName(e.target.value)}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && confirmCreate()}
             />
           </div>
           <div className="flex justify-end gap-2 pt-2">

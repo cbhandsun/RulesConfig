@@ -384,7 +384,7 @@ export default function RuleLibrary({
                </section>
 
                <section className="space-y-4">
-                  <h4 className="text-[12px] font-bold text-theme-muted uppercase tracking-wider border-l-4 border-blue-500 pl-3">执行流水线算子 (Execution Steps)</h4>
+                  <h4 className="text-[12px] font-bold text-theme-muted uppercase tracking-wider border-l-4 border-blue-500 pl-3">执行动作 (Execution Steps)</h4>
                   <div className="space-y-4">
                     {editingRule.rule.steps.map((step, si) => (
                       <div key={step.id} className="bg-slate-50 border border-theme-border rounded-[12px] p-4 group relative">
@@ -432,7 +432,7 @@ export default function RuleLibrary({
                          <div className="flex justify-between items-center bg-white p-2 border border-theme-border rounded-[8px]">
                             <div className="text-[11px] text-theme-muted flex items-center gap-2">
                                <Info className="w-3.5 h-3.5 text-blue-400" />
-                               <span>当前算子参数在独立库中以模板形式锁定。具体的偏移量、权重比与拦截阈值，需在引用该规则的策略编辑器中针对性装配。</span>
+                               <span>当前执行参数在独立库中以模板形式锁定。具体的偏移量、权重比与拦截阈值，需在引用该规则的策略编辑器中针对性装配。</span>
                             </div>
                          </div>
                       </div>
@@ -441,7 +441,7 @@ export default function RuleLibrary({
                       onClick={() => {
                         const newStep: RuleStep = {
                           id: `st-${Math.random()}`,
-                          name: '新增业务算子动作',
+                          name: '新增业务执行动作',
                           filters: [],
                           sorters: [],
                           failoverAction: 'ERROR_SUSPEND',

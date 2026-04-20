@@ -8,6 +8,11 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/5fa4f767-7326-49d7-a895-115550639b4f
 
+## 项目指南
+
+- **[项目架构与业务理解](./PROJECT_STRUCTURE.md)**: 深入了解项目的技术栈、核心概念和业务逻辑。
+- **[高级配置指南](./STRATEGY_GUIDE.md)**: 业务专家的详细配置手册。
+
 ## Run Locally
 
 **Prerequisites:**  Node.js
