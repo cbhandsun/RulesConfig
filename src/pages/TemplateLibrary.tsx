@@ -3,12 +3,24 @@ import { Card, Button, Badge } from '../components/ui';
 import { ShoppingCart, Snowflake, Truck, Package, HeartPulse, Sparkles, Scale, RefreshCcw, Handshake, Layers, Cpu, Database, Box, Scissors, BookOpen, LayoutGrid } from 'lucide-react';
 import { StrategyDetail } from '../types/wms';
 
+interface TemplateDefinition {
+  id: string;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  category: string;
+  color: string;
+  bgColor: string;
+  description: string;
+  tags: string[];
+  preset: Partial<StrategyDetail>;
+}
+
 interface TemplateLibraryProps {
   onUseTemplate: (template: Partial<StrategyDetail>) => void;
   onOpenHelp: () => void;
 }
 
-const templates = [
+const templates: TemplateDefinition[] = [
   {
     id: 'TPL-RET-FRESH-PUT',
     name: '生鲜全温区智能上架逻辑 (Fresh Focus)',
@@ -32,6 +44,10 @@ const templates = [
             {
               id: 'st-f-1',
               name: '动态传感器温域过滤',
+              stepType: 'SELECT',
+              inputSubject: 'LOCATION',
+              outputSubject: 'LOCATION',
+              action: 'RECOMMEND',
               filters: [{ id: 'f-f-1', field: '库位实时温度', operator: 'MATCHES', value: '商品要求温域' }],
               sorters: [{ factorId: 'fact-abc-hit', factorName: '品项热度匹配', weight: 100, direction: 'DESC' as const }],
               failoverAction: 'ERROR_SUSPEND' as const,
@@ -66,6 +82,10 @@ const templates = [
             {
               id: 'st-s-1',
               name: '门店友好型权重计算',
+              stepType: 'SELECT',
+              inputSubject: 'ORDER_LINE',
+              outputSubject: 'LOCATION',
+              action: 'RECOMMEND',
               filters: [],
               sorters: [
                 { factorId: 'fact-store-aisle-seq', factorName: '门店货架动线顺序', weight: 60, direction: 'ASC' as const },
@@ -103,6 +123,10 @@ const templates = [
             {
               id: 'step1',
               name: '查效期并分配快收站',
+              stepType: 'SELECT',
+              inputSubject: 'ORDER_LINE',
+              outputSubject: 'LOCATION',
+              action: 'ASSIGN',
               filters: [{ id: 'f1', field: '剩余效期', operator: '>=', value: '70%' }],
               sorters: [{ factorId: 'fact-route', factorName: '最优动线', weight: 100, direction: 'ASC' as const }],
               failoverAction: 'ERROR_SUSPEND' as const,
@@ -119,6 +143,10 @@ const templates = [
             {
               id: 'step2',
               name: '锁入退货隔离区',
+              stepType: 'SELECT',
+              inputSubject: 'ORDER_LINE',
+              outputSubject: 'LOCATION',
+              action: 'LOCK',
               filters: [{ id: 'f2', field: '库位类型', operator: '==', value: 'QC_HOLD' }],
               sorters: [{ factorId: 'fact-capacity', factorName: '容量', weight: 100, direction: 'DESC' as const }],
               failoverAction: 'ERROR_SUSPEND' as const,
@@ -615,6 +643,10 @@ const templates = [
             {
               id: 'st-wocr-g1',
               name: '阶段1: 任务过滤与同组聚合 (Item Filter & Grouping)',
+              stepType: 'TRANSFORM',
+              inputSubject: 'ORDER_LINE',
+              outputSubject: 'ORDER_LINE',
+              action: 'VALIDATE',
               filters: [
                 { id: 'f-wocr-aa', field: '作业活动区', operator: '==', value: '当前绑定作业区' },
                 { id: 'f-wocr-cg', field: '集货组', operator: '==', value: '同组聚合', logicalOperator: 'AND' as const }
@@ -626,6 +658,10 @@ const templates = [
             {
               id: 'st-wocr-s1',
               name: '阶段2: 拣货动线全局排序 (Sort Rules)',
+              stepType: 'SELECT',
+              inputSubject: 'ORDER_LINE',
+              outputSubject: 'ORDER_LINE',
+              action: 'RECOMMEND',
               filters: [],
               sorters: [{ factorId: 'fact-route', factorName: '最优动线距离', weight: 100, direction: 'ASC' as const }],
               failoverAction: 'PIPELINE_NEXT' as const,
@@ -634,6 +670,10 @@ const templates = [
             {
               id: 'st-wocr-l1',
               name: '阶段3: 物理限制截断与拆箱拆单 (Limits)',
+              stepType: 'SELECT',
+              inputSubject: 'ORDER_LINE',
+              outputSubject: 'ORDER_LINE',
+              action: 'SPLIT',
               filters: [
                 { id: 'f-wocr-vol', field: 'WO累计体积', operator: '<=', value: '托盘极限可用容积' },
                 { id: 'f-wocr-wt', field: 'WO累计重量', operator: '<=', value: '载具额定承载(kg)', logicalOperator: 'AND' as const }

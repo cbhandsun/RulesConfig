@@ -22,7 +22,7 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                 <h4 className="text-[14px] font-black uppercase tracking-wider">架构原理解析：三层决策塔</h4>
               </div>
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                参考 Manhattan Active WM 与 Blue Yonder 的设计，系统采用了高度解耦的<b>「策略 ➔ 序列 ➔ 维度」</b>三层架构，以应对极复杂的全渠道物流场景：
+                参考 Manhattan Active WM 与 Blue Yonder 的设计，系统采用了高度解耦的<b>「策略 ➔ 规则 ➔ 语义步骤」</b>三层架构，以应对极复杂的全渠道物流场景：
               </p>
               
               <div className="space-y-4 mt-6">
@@ -43,10 +43,10 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                    <div className="flex items-center gap-2 mb-2">
                       <GitBranch className="w-4 h-4 text-blue-200" />
-                      <span className="text-[13px] font-bold">L2: 寻址流水线 (Search Stream)</span>
+                      <span className="text-[13px] font-bold">L2: 规则阶段与分流 (Rule Stages)</span>
                    </div>
                    <p className="text-[11px] text-white/80">
-                     <b>执行层</b>：编辑器顶部的 <b>Waterfall 链路</b>。定义了多个“维度”的先后执行顺序与降级逻辑（D1 ➔ D2 ➔ D3）。
+                     <b>编排层</b>：编辑器中的规则卡片序列。定义了多个阶段的先后执行顺序、分流逻辑和降级路径。
                    </p>
                  </div>
 
@@ -54,10 +54,10 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                  <div className="p-4 bg-white border border-blue-200 rounded-2xl relative overflow-hidden group">
                    <div className="flex items-center gap-2 mb-2">
                       <Layers className="w-4 h-4 text-blue-600" />
-                      <span className="text-[13px] font-bold text-slate-800">L3: 业务逻辑维度 (Strategic Dimension)</span>
+                      <span className="text-[13px] font-bold text-slate-800">L3: 语义步骤节点 (Semantic Steps)</span>
                    </div>
                    <p className="text-[11px] text-slate-500 italic">
-                     <b>原子层</b>：链路上的<b>规则卡片节点</b>。每个节点负责一个具体的管控逻辑（如 QA、温控、物理约束）。每个维度可以包含多个硬性约束与业务偏好。
+                     <b>原子层</b>：规则内部的步骤节点。每个步骤负责一个明确的统一决策单元：输入主体、输出主体、决策方式、执行动作，以及其附属的过滤/排序/流控参数。
                    </p>
                  </div>
               </div>
@@ -66,17 +66,33 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-blue-600">
                 <Box className="w-5 h-5" />
-                <h4 className="text-[14px] font-black uppercase tracking-wider">深度澄清：寻址序列 vs 业务维度</h4>
+                <h4 className="text-[14px] font-black uppercase tracking-wider">编程类比：节点层 vs 语句层</h4>
               </div>
-              <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-[12px] text-amber-900 leading-relaxed">
-                <p className="font-bold mb-2">为什么有时会觉得这两个概念混淆？</p>
-                在传统的简单 WMS 中，往往一个寻址序列就对应一个固定的逻辑。但在 MAWM 等现代系统中：
-                <ul className="list-disc ml-4 space-y-1 mt-2">
-                  <li><b>筛选优选序列 (Sequence)</b> 是执行的<b>「管道」</b>。它决定了系统失败后如何从 D1 降级到 D2。它是动态的关系集合。</li>
-                  <li><b>业务评分维度 (Dimension)</b> 是执行的<b>「执行动作节点」</b>。它是静态的逻辑模块，可以被复用。</li>
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-[12px] text-amber-900 leading-relaxed space-y-3">
+                <p className="font-bold">把这套系统类比成程序结构，会更容易理解为什么不需要“动作节点”。</p>
+                <ul className="list-disc ml-4 space-y-1">
+                  <li><b>Strategy</b> 像 module / service / workflow entry，定义当前处理哪个业务场景。</li>
+                  <li><b>Rule</b> 像 function 或阶段性代码块，负责一个业务阶段。</li>
+                  <li><b>Gateway Rule</b> 像 <code>if / else</code>、<code>switch</code>，负责控制流分支。</li>
+                  <li><b>Step</b> 像一条或一组可执行语句，真正承载过滤、选优、转换、指派、锁定、释放等执行逻辑。</li>
+                  <li><b>action</b> 像语句的操作码或函数调用意图，例如 <code>VALIDATE</code>、<code>SELECT</code>、<code>ASSIGN</code>、<code>ROUTE</code>。</li>
                 </ul>
-                <p className="mt-2 text-slate-500 italic">
-                  * 因此，顶部的可视化链路是“寻址序列”，而链路上的每一个“节点”都是一个“业务维度”。
+                <div className="bg-white/70 rounded-lg border border-amber-200 p-3 font-mono text-[11px] text-slate-700 overflow-x-auto">
+{`Strategy
+└── Rule Node A
+    ├── Step 1: VALIDATE ORDER_LINE -> ORDER_LINE
+    ├── Step 2: SELECT INVENTORY_LOT -> INVENTORY_LOT
+    └── Step 3: ASSIGN ORDER_LINE -> LOCATION
+└── Gateway Node B
+    ├── branch: VIP
+    └── branch: NORMAL`}
+                </div>
+                <p>
+                  这个类比下，<b>规则节点 / 路由节点</b> 属于“控制结构层”，<b>step + action</b> 属于“执行语句层”。
+                  所以如果负责“流程怎么走”，它应该是节点级；如果负责“这一步做什么”，它应该是步骤级。
+                </p>
+                <p className="text-slate-500 italic">
+                  * 结论：动作更适合作为 Step 的显式语义字段，而不是与规则节点、路由节点同级的新节点类型。
                 </p>
               </div>
             </section>
@@ -128,7 +144,7 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-blue-600">
                 <Layers className="w-5 h-5" />
-                <h4 className="text-[14px] font-black uppercase tracking-wider">架构层次：从场景到原子动作</h4>
+                <h4 className="text-[14px] font-black uppercase tracking-wider">架构层次：从场景到语义步骤</h4>
               </div>
               <p className="text-[13px] text-slate-600 leading-relaxed">
                 在编辑器中，您正在通过三层嵌套结构来构建复杂的自动化逻辑：
@@ -154,9 +170,9 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                 <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
                   <div className="flex items-center gap-2 mb-1">
                     <Zap className="w-4 h-4 text-indigo-500" />
-                    <span className="text-[12px] font-bold text-indigo-800">3. 步骤 (Step) - 原子执行动作</span>
+                    <span className="text-[12px] font-bold text-indigo-800">3. 步骤 (Step) - 语义步骤单元</span>
                   </div>
-                  <p className="text-[11px] text-indigo-600/70">规则内部的每一行。包含具体的“硬性过滤”与“软性评分”。是最终计算出结果的原子单元。</p>
+                  <p className="text-[11px] text-indigo-600/70">规则内部的每一行。它先定义这一步采用什么决策方式，再定义完成处理后的执行动作，是最终产出结果的统一语义单元。</p>
                 </div>
               </div>
             </section>
@@ -226,7 +242,9 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                 <pre className="text-[11px] font-mono text-emerald-400 leading-relaxed overflow-x-auto">
 {`{
   "instructionId": "WI-20240417-001",
-  "action": "PICK_AND_MOVE",
+  "action": "ASSIGN",
+  "inputSubject": "ORDER_LINE",
+  "outputSubject": "LOCATION",
   "assignments": [
     { "loc": "A-10-01", "qty": 50, "rank": 1 },
     { "loc": "B-05-02", "qty": 20, "rank": 2 }

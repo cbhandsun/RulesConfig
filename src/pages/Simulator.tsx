@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell } from 'recharts';
 import { StrategyDetail } from '../types/wms';
+import { getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction } from '../utils/stepSemantics';
 import { Button, Input, Badge, Select, Card } from '../components/ui';
 import { X, Loader2, BarChart, Activity, TrendingUp, ShieldCheck, History, Info, ArrowLeftRight, PlayCircle, Settings2, Sparkles, ShieldAlert, BookOpen } from 'lucide-react';
 
@@ -144,6 +145,9 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
         if (isTerminated) break;
         
         const step = simRule!.steps[i];
+      const stepAction = getEffectiveStepAction(step);
+      const stepInput = getEffectiveInputSubject(step, strategy.primarySubject);
+      const stepOutput = getEffectiveOutputSubject(step, strategy.primarySubject);
       const stepFilters = step.filters.map(f => {
         const dropPercent = Math.random() * 0.2 + 0.05; 
         const dropped = Math.floor(totalLocations * dropPercent);
@@ -153,13 +157,14 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
       });
       
       logs.push(`> Phase ${i+1} [${step.name}] completed. Remaining: ${totalLocations.toLocaleString()}`);
+      logs.push(`> Step semantics: ${stepAction} | ${stepInput} -> ${stepOutput}`);
       
       if(step.sorters.length > 0 && totalLocations > 0) {
          logs.push(`> Applying sorting weights: ${step.sorters.map(s => `${s.factorName}(${s.weight}%)`).join(', ')}`);
       }
 
       funnelSteps.push({
-        name: `Step ${i+1}: ${step.name}`,
+        name: `Step ${i+1}: ${step.name} (${stepAction})`,
         filters: stepFilters,
         remaining: totalLocations,
         failedFallback: step.failoverAction === 'ERROR_SUSPEND' ? '报错并挂起异常' :

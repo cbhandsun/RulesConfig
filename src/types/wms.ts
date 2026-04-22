@@ -21,11 +21,41 @@ export interface MatchingCondition {
   logicalOperator?: 'AND' | 'OR';
 }
 
+export type RuleStepType = 'FILTER' | 'SELECT' | 'TRANSFORM' | 'GATEWAY';
+
+export type RuleStepAction =
+  | 'NONE'
+  | 'VALIDATE'
+  | 'SELECT'
+  | 'RECOMMEND'
+  | 'ASSIGN'
+  | 'ROUTE'
+  | 'LOCK'
+  | 'ALLOCATE'
+  | 'GENERATE_TASK'
+  | 'SPLIT'
+  | 'SUSPEND'
+  | 'RELEASE'
+  | 'REDIRECT';
+
+export interface StepInputBinding {
+  stepId: string;
+  alias: string;
+  subject: FactorTarget;
+  required: boolean;
+  mode?: 'ONE' | 'LIST' | 'MAP';
+}
+
 export interface RuleStep {
   id: string;
   name: string;
   description?: string; // 步骤说明，描述该配置的内容和业务目的
-  targetSubject?: FactorTarget; // 当前步骤聚焦度量的对象 (联动重心)
+  stepType?: RuleStepType;
+  inputSubject?: FactorTarget;
+  upstreamBindings?: StepInputBinding[];
+  outputSubject?: FactorTarget;
+  action?: RuleStepAction;
+  targetSubject?: FactorTarget; // 兼容旧模型，优先使用 input/outputSubject
   filters: MatchingCondition[];
   sorters: { factorId: string; factorName: string; weight: number; direction: 'ASC' | 'DESC' }[];
   failoverAction: 'NEXT_STEP' | 'ERROR_SUSPEND' | 'PIPELINE_NEXT' | 'SPLIT_NEW_WO';

@@ -1,7 +1,8 @@
 import React from 'react';
 import { StrategyDetail, StrategyCategory } from '../types/wms';
 import { Button, Card, Badge, Input } from '../components/ui';
-import { Plus, Search, Edit2, Play, Copy, History, Info, BookOpen, GitBranch, ArrowRight, Shuffle, Filter, LayoutGrid } from 'lucide-react';
+import { Plus, Search, Edit2, Play, Info, BookOpen, Layers, Shuffle, LayoutGrid, ArrowLeftRight, Zap } from 'lucide-react';
+import { getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction } from '../utils/stepSemantics';
 
 interface DashboardProps {
   strategies: StrategyDetail[];
@@ -30,12 +31,27 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
     return true;
   });
 
+  const portfolioStats = React.useMemo(() => {
+    const allRules = strategies.flatMap(strategy => strategy.rules);
+    const allSteps = strategies.flatMap(strategy => strategy.rules.flatMap(rule => rule.steps.map(step => ({ strategy, step }))));
+    const actionSet = new Set(allSteps.map(({ step }) => getEffectiveStepAction(step)));
+    const subjectTransitions = new Set(allSteps.map(({ strategy, step }) => `${getEffectiveInputSubject(step, strategy.primarySubject)}→${getEffectiveOutputSubject(step, strategy.primarySubject)}`));
+
+    return {
+      strategies: strategies.length,
+      rules: allRules.length,
+      steps: allSteps.length,
+      actions: actionSet.size,
+      transitions: subjectTransitions.size,
+    };
+  }, [strategies]);
+
   return (
     <div className="flex-1 p-6 flex flex-col gap-6 w-full max-w-[1024px] mx-auto overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[18px] font-medium text-theme-ink tracking-tight m-0">领域驱动: 宏观业务场景策略 (Tier 1: Global Strategies)</h1>
-          <p className="text-[12px] text-theme-muted mt-1">全局大类场景，您可以点击进入具体策略为其设置细分的处理流 (Sub-Strategies)。</p>
+          <h1 className="text-[18px] font-medium text-theme-ink tracking-tight m-0">策略组合管理: 场景 / 规则 / 语义步骤</h1>
+          <p className="text-[12px] text-theme-muted mt-1">从管理视角统一查看业务场景、规则阶段、以及步骤级输入输出迁移与动作语义。</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -58,14 +74,37 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
              <Info className="w-5 h-5 text-blue-400" />
            </div>
            <div>
-               <h3 className="text-[14px] font-bold tracking-wide uppercase opacity-90">调度中心核心原理：行业级 4-Tier 业务流控架构</h3>
+               <h3 className="text-[14px] font-bold tracking-wide uppercase opacity-90">统一决策模型：策略 → 规则 → 语义步骤</h3>
                <p className="text-[12px] text-white/60 mt-2 leading-relaxed max-w-[800px]">
-                 系统采用顶尖 WMS (MAWM) 标准的 <b>策略面(Matrix) ➔ 执行流(Stream) ➔ 硬性约束(Hard Constraints) ➔ 业务偏好评估(Business Preferences)</b> 四层拓扑。
+                 管理面与执行面围绕同一套编排机制组织：<b>策略</b>定义业务场景边界，<b>规则</b>定义阶段与分流，<b>步骤</b>定义输入主体、输出主体、步骤类型与动作语义。
                  <span className="mx-2 opacity-30">|</span>
-                 在此页面，您可以选择一个宏观 <b>业务策略</b>，并为其编排降级处理序列。
+                 这样 Dashboard 看到的不再只是“策略清单”，而是整套可执行决策网络的管理总览。
                </p>
            </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-5 gap-3">
+        <Card className="p-4 border-theme-border bg-white">
+          <div className="text-[11px] text-theme-muted uppercase tracking-wider">策略场景</div>
+          <div className="mt-2 text-[22px] font-bold text-theme-ink">{portfolioStats.strategies}</div>
+        </Card>
+        <Card className="p-4 border-theme-border bg-white">
+          <div className="text-[11px] text-theme-muted uppercase tracking-wider">规则阶段</div>
+          <div className="mt-2 text-[22px] font-bold text-theme-ink">{portfolioStats.rules}</div>
+        </Card>
+        <Card className="p-4 border-theme-border bg-white">
+          <div className="text-[11px] text-theme-muted uppercase tracking-wider">语义步骤</div>
+          <div className="mt-2 text-[22px] font-bold text-theme-ink">{portfolioStats.steps}</div>
+        </Card>
+        <Card className="p-4 border-theme-border bg-white">
+          <div className="text-[11px] text-theme-muted uppercase tracking-wider">动作类型</div>
+          <div className="mt-2 text-[22px] font-bold text-theme-ink">{portfolioStats.actions}</div>
+        </Card>
+        <Card className="p-4 border-theme-border bg-white">
+          <div className="text-[11px] text-theme-muted uppercase tracking-wider">主体迁移</div>
+          <div className="mt-2 text-[22px] font-bold text-theme-ink">{portfolioStats.transitions}</div>
+        </Card>
       </div>
 
       <div className="flex items-center justify-between gap-4 border-b border-theme-border pb-4">
@@ -111,7 +150,13 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border text-[13px] bg-white">
-              {filteredStrategies.sort((a,b) => b.priority - a.priority).map((strategy) => (
+              {filteredStrategies.sort((a,b) => b.priority - a.priority).map((strategy) => {
+                const strategyRules = strategy.rules;
+                const strategySteps = strategyRules.flatMap(rule => rule.steps);
+                const actionSummary = Array.from(new Set(strategySteps.map(step => getEffectiveStepAction(step)))).slice(0, 3);
+                const transitionSummary = Array.from(new Set(strategySteps.map(step => `${getEffectiveInputSubject(step, strategy.primarySubject)}→${getEffectiveOutputSubject(step, strategy.primarySubject)}`))).slice(0, 2);
+
+                return (
                 <tr key={strategy.id} className="hover:bg-blue-50/20 transition-colors group">
                   <td className="px-4 py-4 text-center">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-500 font-mono text-[11px] font-bold group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
@@ -155,6 +200,22 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
                            <LayoutGrid className="w-3 h-3" />
                            含 {strategy.category} 核心架构
                          </div>
+                         <div className="flex items-center gap-1.5 text-[10px] text-violet-600 font-bold bg-violet-50 px-1.5 py-0.5 rounded border border-violet-100">
+                           <Layers className="w-3 h-3" />
+                           {strategyRules.length} 规则 / {strategySteps.length} 步骤
+                         </div>
+                       </div>
+                       <div className="flex flex-wrap items-center gap-2">
+                         {actionSummary.map((action) => (
+                           <span key={action} className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 rounded px-1.5 py-0.5 font-black tracking-tighter flex items-center gap-1">
+                             <Zap className="w-2.5 h-2.5" /> {action}
+                           </span>
+                         ))}
+                         {transitionSummary.map((transition) => (
+                           <span key={transition} className="text-[10px] bg-sky-50 text-sky-700 border border-sky-100 rounded px-1.5 py-0.5 font-black tracking-tighter flex items-center gap-1">
+                             <ArrowLeftRight className="w-2.5 h-2.5" /> {transition}
+                           </span>
+                         ))}
                        </div>
                      </div>
                    </td>
@@ -175,7 +236,8 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {filteredStrategies.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-theme-muted">

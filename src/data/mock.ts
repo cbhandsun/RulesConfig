@@ -1,6 +1,31 @@
-import { StrategyDetail, Factor, StrategyRule } from '../types/wms';
+import { StrategyDetail, Factor, StrategyRule, RuleStep } from '../types/wms';
+import { getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction, getEffectiveStepType } from '../utils/stepSemantics';
 
-export const mockStrategies: StrategyDetail[] = [
+const normalizeStep = (step: RuleStep, strategyPrimarySubject: StrategyDetail['primarySubject']): RuleStep => ({
+  ...step,
+  stepType: step.stepType ?? getEffectiveStepType(step),
+  inputSubject: step.inputSubject ?? getEffectiveInputSubject(step, strategyPrimarySubject),
+  outputSubject: step.outputSubject ?? getEffectiveOutputSubject(step, strategyPrimarySubject),
+  action: step.action ?? getEffectiveStepAction(step),
+});
+
+const normalizeStrategy = (strategy: StrategyDetail): StrategyDetail => ({
+  ...strategy,
+  rules: strategy.rules.map(rule => ({
+    ...rule,
+    steps: rule.steps.map(step => normalizeStep(step, strategy.primarySubject)),
+  })),
+});
+
+const normalizeIndependentRule = (rule: StrategyRule): StrategyRule => ({
+  ...rule,
+  steps: rule.steps.map(step => normalizeStep(step, 'CONTEXT')),
+});
+
+const toStrategyDetail = (strategy: unknown): StrategyDetail => normalizeStrategy(strategy as StrategyDetail);
+const toIndependentRule = (rule: unknown): StrategyRule => normalizeIndependentRule(rule as StrategyRule);
+
+const rawStrategies = [
   {
     id: 'STG-WAVE-SMART-BATCH',
     name: '【波次策略】AI 智能订单聚类与波次自适应释放 (Smart Wave Matrix)',
@@ -132,6 +157,10 @@ export const mockStrategies: StrategyDetail[] = [
             id: 'st-r1-1',
             name: '精细温区匹配与效期过滤',
             description: '通过物理温区限制和批次剩余寿命筛选，防止因发错温区引发的合规性事件并优化保质期库存模型。',
+            stepType: 'SELECT',
+            inputSubject: 'INVENTORY_LOT',
+            outputSubject: 'INVENTORY_LOT',
+            action: 'SELECT',
             targetSubject: 'INVENTORY_LOT',
             filters: [
               { id: 'f-1', field: '库存可用状态', operator: '==', value: 'AVAILABLE' },
@@ -151,8 +180,108 @@ export const mockStrategies: StrategyDetail[] = [
         ]
       },
       {
+        id: 'rule-retail-allocation-pipeline',
+        name: '寻址序列 B：门店补货需求-库存联合分配 (Demand + Inventory Allocation)',
+        description: '【配置目标】将门店补货需求拆解、库存候选查找与最终分配决策串成一条标准分配链路。先形成需求上下文，再筛出可用库存候选，最后综合 FEFO、动线距离、门店友好度与整零偏好做一次可解释的最终分配。',
+        enabled: true,
+        priorityGroup: '阶段 2: 需求理解与综合分配',
+        flowControl: 'TERMINATE',
+        matchingCriteria: [
+          { id: 'mc-r4', field: '分配环节', operator: '==', value: 'STORE_REPLENISHMENT' }
+        ],
+        steps: [
+          {
+            id: 'st-r-mid-1',
+            name: '需求预处理',
+            description: '识别真实补货需求，形成后续分配可直接使用的需求上下文，包括优先级、波次与门店友好约束。',
+            stepType: 'FILTER',
+            inputSubject: 'ORDER_LINE',
+            outputSubject: 'ORDER_LINE',
+            action: 'VALIDATE',
+            targetSubject: 'ORDER_LINE',
+            filters: [
+              { id: 'f-r-mid-1', field: 'needQty', operator: '>', value: '0' },
+              { id: 'f-r-mid-2', field: 'storeStatus', operator: '==', value: 'ACTIVE' }
+            ],
+            sorters: [],
+            failoverAction: 'NEXT_STEP',
+            flowControl: 'CONTINUE',
+            config: {
+              "demandBucket": "STORE_REPLENISHMENT",
+              "priorityPolicy": "STORE_PRIORITY_FIRST",
+              "friendlySequence": "AISLE_DISPLAY_ORDER"
+            }
+          },
+          {
+            id: 'st-r-mid-2',
+            name: '库存查找',
+            description: '根据 SKU、货主、温区和可用量约束筛出能够参与本次分配的库存批次候选集合。',
+            stepType: 'SELECT',
+            inputSubject: 'ORDER_LINE',
+            outputSubject: 'INVENTORY_LOT',
+            action: 'SELECT',
+            targetSubject: 'INVENTORY_LOT',
+            filters: [
+              { id: 'f-r-mid-3', field: 'tempZoneMatch', operator: '==', value: 'true' },
+              { id: 'f-r-mid-4', field: 'availableQty', operator: '>', value: '0' }
+            ],
+            sorters: [
+              { factorId: 'fact-shelf-life-ratio', factorName: 'FEFO', weight: 60, direction: 'ASC' },
+              { factorId: 'fact-clear-bin', factorName: '批次稳定性/清库倾向', weight: 40, direction: 'DESC' }
+            ],
+            failoverAction: 'ERROR_SUSPEND',
+            flowControl: 'CONTINUE',
+            config: {
+              "selectionMode": "ALL_MATCHED",
+              "inventoryScope": "DC_AVAILABLE_POOL"
+            }
+          },
+          {
+            id: 'st-r-mid-3',
+            name: '综合分配决策',
+            description: '本步骤组合前序“需求预处理”的需求上下文与“库存查找”的库存候选结果，进行最终门店补货分配。',
+            stepType: 'SELECT',
+            inputSubject: 'ORDER_LINE',
+            outputSubject: 'LOCATION',
+            action: 'ASSIGN',
+            targetSubject: 'LOCATION',
+            upstreamBindings: [
+              {
+                stepId: 'st-r-mid-1',
+                alias: 'demandContext',
+                subject: 'ORDER_LINE',
+                required: true,
+                mode: 'LIST'
+              },
+              {
+                stepId: 'st-r-mid-2',
+                alias: 'inventoryCandidates',
+                subject: 'INVENTORY_LOT',
+                required: true,
+                mode: 'LIST'
+              }
+            ],
+            filters: [],
+            sorters: [
+              { factorId: 'fact-shelf-life-ratio', factorName: 'FEFO', weight: 35, direction: 'ASC' },
+              { factorId: 'fact-route-dist', factorName: '动线距离', weight: 25, direction: 'ASC' },
+              { factorId: 'fact-store-aisle-seq', factorName: '门店友好度', weight: 20, direction: 'DESC' },
+              { factorId: 'fact-pick-density', factorName: '整零偏好', weight: 20, direction: 'DESC' }
+            ],
+            failoverAction: 'SPLIT_NEW_WO',
+            flowControl: 'TERMINATE',
+            config: {
+              "selectionMode": "ONE",
+              "allowSplitAllocation": true,
+              "forceAssignWhenShort": false,
+              "assignmentPolicy": "BALANCED_FEFO"
+            }
+          }
+        ]
+      },
+      {
         id: 'rule-retail-friendly',
-        name: '寻址序列 B：门店经营动线顺排 (Shelf-Friendly Sorting)',
+        name: '寻址序列 C：门店经营动线顺排 (Shelf-Friendly Sorting)',
         description: '【配置目标】提高门店上架效率。按照目标门店的陈列地图顺序（Aisle-Level-Map）生成拣货指令，确保重物（>15KG）在底部，易碎轻物在顶部。',
         enabled: true,
         priorityGroup: '阶段 2: 作业效率与门店友好度',
@@ -217,6 +346,10 @@ export const mockStrategies: StrategyDetail[] = [
           {
             id: 'st-pur-1',
             name: '采购拦截算子',
+            stepType: 'FILTER',
+            inputSubject: 'ORDER_LINE',
+            outputSubject: 'ORDER_LINE',
+            action: 'VALIDATE',
             targetSubject: 'ORDER_LINE',
             filters: [
               { id: 'f-pur-1', field: '允许超收校验', operator: '==', value: '禁止超收' },
@@ -249,6 +382,10 @@ export const mockStrategies: StrategyDetail[] = [
             id: 'st-pur-2-1',
             name: '人工指定收货位寻源',
             description: '优先级最高。检查作业人员在 PDA 或工作台上是否手动预设了目标储位。',
+            stepType: 'SELECT',
+            inputSubject: 'ORDER_LINE',
+            outputSubject: 'LOCATION',
+            action: 'ASSIGN',
             targetSubject: 'LOCATION',
             filters: [
               { id: 'f-pur-sh-1', field: '用户预设位置', operator: '!=', value: 'null' }
@@ -267,6 +404,10 @@ export const mockStrategies: StrategyDetail[] = [
             id: 'st-pur-2-2',
             name: 'SKU 主档默认收货位寻源',
             description: '降级第一级。当无人工指定时，自动匹配该商品在主数据中预设的专属收货道口或存储区。',
+            stepType: 'SELECT',
+            inputSubject: 'ORDER_LINE',
+            outputSubject: 'LOCATION',
+            action: 'ASSIGN',
             targetSubject: 'LOCATION',
             filters: [
               { id: 'f-pur-sh-2', field: 'SKU默认收货位', operator: '!=', value: 'null' }
@@ -285,6 +426,10 @@ export const mockStrategies: StrategyDetail[] = [
             id: 'st-pur-2-3',
             name: '订单类型兜底收货位寻源',
             description: '最终兜底逻辑。根据采购单类型（如：常规采购 vs 紧急采购）指派至对应的默认收货缓冲区。',
+            stepType: 'SELECT',
+            inputSubject: 'ORDER_LINE',
+            outputSubject: 'LOCATION',
+            action: 'ROUTE',
             targetSubject: 'LOCATION',
             filters: [],
             sorters: [
@@ -934,6 +1079,10 @@ export const mockStrategies: StrategyDetail[] = [
           {
             id: 'st-dc-p2-1-1',
             name: '已有散货库位扫描',
+            stepType: 'FILTER',
+            inputSubject: 'INVENTORY_LOT',
+            outputSubject: 'INVENTORY_LOT',
+            action: 'VALIDATE',
             targetSubject: 'INVENTORY_LOT',
             filters: [{ id: 'f-dc-4', field: '库位状态', operator: '==', value: 'PARTIAL' }],
             sorters: [],
@@ -943,6 +1092,10 @@ export const mockStrategies: StrategyDetail[] = [
           {
             id: 'st-dc-p2-1-2',
             name: '合并后填充率计算',
+            stepType: 'TRANSFORM',
+            inputSubject: 'INVENTORY_LOT',
+            outputSubject: 'LOCATION',
+            action: 'RECOMMEND',
             targetSubject: 'LOCATION',
             filters: [{ id: 'f-dc-5', field: '预测填充率', operator: '<=', value: '95%' }],
             sorters: [{ factorId: 'fact-fill', factorName: '空间利用率', weight: 100, direction: 'DESC' }],
@@ -1590,7 +1743,7 @@ export const mockFactors: Factor[] = [
   }
 ];
 
-export const mockIndependentRules: StrategyRule[] = [
+const rawIndependentRules = [
   {
     id: 'RULE-IND-STORE-SEQUENCE',
     name: '【门店分单】基于门店路径的任务拆分规则',
@@ -1646,6 +1799,10 @@ export const mockIndependentRules: StrategyRule[] = [
         id: 'st-ind-fs-1',
         name: '污染防线硬校验',
         description: '食品安全核心拦截器。禁止将食品类 SKU 分配至曾存放过化学品或强气味商品的货位及其相邻 1 米半径内的储位。',
+        stepType: 'FILTER',
+        inputSubject: 'LOCATION',
+        outputSubject: 'LOCATION',
+        action: 'VALIDATE',
         targetSubject: 'LOCATION',
         filters: [
           { id: 'f-fs-1', field: '周边库位物品类目', operator: 'EXCLUDE', value: 'Chemicals/Detergents' }
@@ -1658,3 +1815,6 @@ export const mockIndependentRules: StrategyRule[] = [
     ]
   }
 ];
+
+export const mockStrategies: StrategyDetail[] = rawStrategies.map(toStrategyDetail);
+export const mockIndependentRules: StrategyRule[] = rawIndependentRules.map(toIndependentRule);

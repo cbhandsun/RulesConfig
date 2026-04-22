@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { StrategyDetail, StrategyRule, MatchingCondition, RuleStep } from '../types/wms';
+import { StrategyDetail, StrategyRule, MatchingCondition } from '../types/wms';
+import { createDefaultStep, getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction } from '../utils/stepSemantics';
 import { Button, Card, Badge, Input } from '../components/ui';
-import { 
-  Search, Plus, GitBranch, Edit3, Trash2, 
-  PlayCircle, BookOpen, Layers, Filter, Info, X, ChevronDown, CheckCircle2, Settings 
+import {
+  Search, Plus, GitBranch, Edit3, Trash2,
+  PlayCircle, BookOpen, Layers, Info, X, CheckCircle2, Settings
 } from 'lucide-react';
 
 interface RuleLibraryProps {
@@ -93,10 +94,10 @@ export default function RuleLibrary({
           <div>
             <div className="flex items-center gap-2 mb-1">
                <Layers className="w-5 h-5 text-theme-primary" />
-               <h1 className="text-2xl font-bold tracking-tight">业务维度与规则中心 (Strategic Dimension Library)</h1>
+               <h1 className="text-2xl font-bold tracking-tight">规则阶段与语义步骤资产中心</h1>
             </div>
             <p className="text-theme-muted text-[13px] max-w-2xl leading-relaxed">
-              统一管理原子化的业务逻辑维度（Dimensions）。包含可复用的独立拦截逻辑与策略规则插件，实现跨场景的逻辑编排与分发。
+              统一管理可复用的规则阶段与其内部语义步骤资产。这里看到的不只是拦截条件，而是完整的阶段意图、动作语义、主体迁移和步骤执行结构。
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -391,7 +392,7 @@ export default function RuleLibrary({
                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-theme-border/50">
                             <div className="flex items-center gap-2">
                                <span className="w-6 h-6 rounded-full bg-slate-800 text-white text-[11px] flex items-center justify-center font-bold">{si + 1}</span>
-                               <input 
+                               <input
                                  className="font-bold text-[13px] bg-transparent border-none focus:outline-none"
                                  value={step.name}
                                  onChange={(e) => {
@@ -400,6 +401,9 @@ export default function RuleLibrary({
                                    setEditingRule({ ...editingRule, rule: { ...editingRule.rule, steps: newSteps } });
                                  }}
                                />
+                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 font-bold">
+                                 {getEffectiveStepAction(step)} · {getEffectiveInputSubject(step, 'CONTEXT')} → {getEffectiveOutputSubject(step, 'CONTEXT')}
+                               </span>
                             </div>
                             <div className="flex items-center gap-2">
                                <div className="flex items-center gap-1 text-[11px] text-theme-muted mr-4">
@@ -439,14 +443,8 @@ export default function RuleLibrary({
                     ))}
                     <button 
                       onClick={() => {
-                        const newStep: RuleStep = {
-                          id: `st-${Math.random()}`,
-                          name: '新增业务执行动作',
-                          filters: [],
-                          sorters: [],
-                          failoverAction: 'ERROR_SUSPEND',
-                          flowControl: 'TERMINATE'
-                        };
+                        const newStep = createDefaultStep('CONTEXT', editingRule.rule.steps.length + 1);
+                        newStep.failoverAction = 'ERROR_SUSPEND';
                         setEditingRule({ ...editingRule, rule: { ...editingRule.rule, steps: [...editingRule.rule.steps, newStep] } });
                       }}
                       className="w-full h-10 border-2 border-dashed border-theme-border rounded-xl text-theme-muted hover:text-theme-primary hover:border-theme-primary transition-all flex items-center justify-center gap-2 group"

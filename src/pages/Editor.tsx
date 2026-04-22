@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, RadarChart, ResponsiveContainer } from 'recharts';
-import { StrategyDetail, RuleStep, Factor, StrategyRule, FactorTarget } from '../types/wms';
+import { StrategyDetail, RuleStep, Factor, StrategyRule, FactorTarget, RuleStepAction, RuleStepType, StepInputBinding } from '../types/wms';
 import { mockFactors } from '../data/mock';
 import { Button, Card, Badge, Input } from '../components/ui';
+import { createDefaultStep, getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction, getEffectiveStepType } from '../utils/stepSemantics';
 import { ArrowLeft, ArrowRight, Save, Play, Plus, X, ArrowDown, ChevronRight, Settings, PlusCircle, Search, ChevronDown, GitBranch, GitMerge, HelpCircle, BookOpen, Layers, Zap, Code, Filter, Info, LayoutGrid, Sparkles, Activity, ShieldCheck, ShieldAlert, Box, Workflow, AlertCircle, Link as LinkIcon, ArrowDownRight, Scale } from 'lucide-react';
 
 const calculateRadarData = (rule: StrategyRule) => {
@@ -49,16 +50,31 @@ const RadarInsight = ({ rule }: { rule: StrategyRule }) => {
   );
 };
 
+type AvailableParam = {
+  key: string;
+  label: string;
+  type: string;
+  group: string;
+  description?: string;
+  unit?: string;
+  placeholder?: string;
+  options?: string[];
+};
+
 const BusinessInsight = ({ rule }: { rule: StrategyRule }) => {
   const isGate = rule.type === 'GATE';
   const hasManual = rule.steps.some(s => s.id.includes('manual') || (s.description && s.description.includes('手动')));
-  const hasFilter = rule.steps.some(s => s.filters.length > 0);
-  const hasQtyControl = rule.steps.some(s => 
-    s.name?.includes('数量') || 
-    s.description?.includes('数量') || 
-    s.filters.some(f => f.field.includes('数量')) ||
-    (s.config && Object.keys(s.config).some(k => k.includes('Quantity')))
-  );
+  const hasFilter = rule.steps.some(s => (s.filters ?? []).length > 0);
+  const hasQtyControl = rule.steps.some(s => {
+    const filters = s.filters ?? [];
+    const config = s.config ?? {};
+    return (
+      s.name?.includes('数量') ||
+      s.description?.includes('数量') ||
+      filters.some(f => f.field.includes('数量')) ||
+      Object.keys(config).some(k => k.includes('Quantity'))
+    );
+  });
   
   return (
     <div className="mt-4 p-4 bg-slate-900 rounded-xl border border-white/5 shadow-2xl relative overflow-hidden group">
@@ -142,7 +158,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
     }
   }, [activeRuleId]);
 
-  const handleUpdateStepSubject = (stepId: string, subject: any) => {
+  const handleUpdateStepSemantics = (stepId: string, patch: Partial<RuleStep>) => {
     setData(prev => {
       if (!prev) return prev;
       return {
@@ -153,21 +169,22 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
             ...r,
             steps: r.steps.map(s => {
               if (s.id !== stepId) return s;
-              
-              // Smart Renaming: if default name, update to include subject name
-              let newName = s.name;
-              if (s.name.includes('执行动作') || s.name.includes('执行步骤') || s.name.startsWith('新增节点')) {
-                 const intent = getStepIntent(subject);
-                 newName = `${intent} (自动升级)`;
+
+              const nextStep = { ...s, ...patch };
+              let newName = nextStep.name;
+              if (s.name.includes('执行动作') || s.name.includes('执行步骤') || s.name.startsWith('新增节点') || s.name === '新步骤') {
+                const input = getEffectiveInputSubject(nextStep, prev.primarySubject);
+                const output = getEffectiveOutputSubject(nextStep, prev.primarySubject);
+                const action = getEffectiveStepAction(nextStep);
+                newName = getStepIntentLabel(action, input, output);
               }
 
-              return { ...s, targetSubject: subject, name: newName };
+              return { ...nextStep, name: newName };
             })
           };
         })
       };
     });
-    // Linkage: automatically scroll sidebar or highlight when subject changes
     setFocusedStepId(stepId);
   };
 
@@ -175,7 +192,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
   const sceneStats = useMemo(() => {
     if (!data) return { branched: false, subjects: [], steps: 0, priorityGroups: 0, hasGuardrails: false };
     const branches = data.rules.some(r => r.type === 'GATE');
-    const subjects = Array.from(new Set(data.rules.flatMap(r => r.steps.map(s => s.targetSubject || data.primarySubject))));
+    const subjects = Array.from(new Set(data.rules.flatMap(r => r.steps.flatMap(s => [getEffectiveInputSubject(s, data.primarySubject), getEffectiveOutputSubject(s, data.primarySubject)]))));
     const steps = data.rules.reduce((acc, current) => acc + current.steps.length, 0);
     const groups = new Set(data.rules.map(r => r.priorityGroup || 'default')).size;
     const guardrails = (data.guardrails || []).length > 0;
@@ -207,17 +224,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
         ...prev,
         rules: prev.rules.map(r => {
           if (r.id !== activeRuleId) return r;
-          const subject = prev.primarySubject;
-          const intent = getStepIntent(subject);
-          const newStep: RuleStep = {
-            id: `st-${Math.floor(Math.random() * 10000)}`,
-            name: `${intent} (新动作 #${r.steps.length + 1})`,
-            targetSubject: subject,
-            filters: [],
-            sorters: [],
-            failoverAction: 'NEXT_STEP',
-            flowControl: 'TERMINATE'
-          };
+          const newStep = createDefaultStep(prev.primarySubject, r.steps.length + 1);
+          newStep.name = `${getStepIntentLabel(newStep.action || 'VALIDATE', newStep.inputSubject || prev.primarySubject, newStep.outputSubject || prev.primarySubject)} (新动作 #${r.steps.length + 1})`;
           return { ...r, steps: [...r.steps, newStep] };
         })
       };
@@ -231,8 +239,120 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
         ...prev,
         rules: prev.rules.map(r => {
           if (r.id !== activeRuleId) return r;
-          return { ...r, steps: r.steps.filter(s => s.id !== stepId) };
+          return {
+            ...r,
+            steps: r.steps
+              .filter(s => s.id !== stepId)
+              .map(s => ({
+                ...s,
+                upstreamBindings: s.upstreamBindings?.filter(binding => binding.stepId !== stepId),
+              }))
+          };
         })
+      };
+    });
+  };
+
+  const handleAddUpstreamBinding = (stepId: string) => {
+    setData((prev: StrategyDetail | null) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        rules: prev.rules.map((r: StrategyRule) => {
+          if (r.id !== activeRuleId) return r;
+          const stepIndex = r.steps.findIndex((s: RuleStep) => s.id === stepId);
+          if (stepIndex <= 0) return r;
+
+          const currentStep = r.steps[stepIndex];
+          const availableSteps = r.steps.slice(0, stepIndex);
+          const existingBindingStepIds = new Set((currentStep.upstreamBindings ?? []).map((binding: StepInputBinding) => binding.stepId));
+          const sourceStep = [...availableSteps].reverse().find((candidate: RuleStep) => !existingBindingStepIds.has(candidate.id));
+          if (!sourceStep) return r;
+
+          const sourceOutputSubject = getEffectiveOutputSubject(sourceStep, prev.primarySubject);
+          const aliasBase = sourceStep.name
+            .replace(/\s+/g, '_')
+            .replace(/[^\w一-龥]/g, '')
+            .slice(0, 24) || 'upstream';
+
+          return {
+            ...r,
+            steps: r.steps.map((s: RuleStep) => {
+              if (s.id !== stepId) return s;
+              return {
+                ...s,
+                upstreamBindings: [
+                  ...(s.upstreamBindings ?? []),
+                  {
+                    stepId: sourceStep.id,
+                    alias: aliasBase,
+                    subject: sourceOutputSubject,
+                    required: true,
+                    mode: 'LIST',
+                  },
+                ],
+              };
+            }),
+          };
+        }),
+      };
+    });
+  };
+
+  const handleUpdateUpstreamBinding = (stepId: string, bindingStepId: string, patch: Partial<StepInputBinding>) => {
+    setData((prev: StrategyDetail | null) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        rules: prev.rules.map((r: StrategyRule) => {
+          if (r.id !== activeRuleId) return r;
+          const stepIndex = r.steps.findIndex((s: RuleStep) => s.id === stepId);
+          if (stepIndex === -1) return r;
+          const availableSteps = r.steps.slice(0, stepIndex);
+
+          return {
+            ...r,
+            steps: r.steps.map((s: RuleStep) => {
+              if (s.id !== stepId) return s;
+              return {
+                ...s,
+                upstreamBindings: (s.upstreamBindings ?? []).map((binding: StepInputBinding) => {
+                  if (binding.stepId !== bindingStepId) return binding;
+                  const nextBinding = { ...binding, ...patch };
+                  if (patch.stepId) {
+                    const sourceStep = availableSteps.find((candidate: RuleStep) => candidate.id === patch.stepId);
+                    if (sourceStep) {
+                      nextBinding.subject = getEffectiveOutputSubject(sourceStep, prev.primarySubject);
+                    }
+                  }
+                  return nextBinding;
+                }),
+              };
+            }),
+          };
+        }),
+      };
+    });
+  };
+
+  const handleRemoveUpstreamBinding = (stepId: string, bindingStepId: string) => {
+    setData((prev: StrategyDetail | null) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        rules: prev.rules.map((r: StrategyRule) => {
+          if (r.id !== activeRuleId) return r;
+          return {
+            ...r,
+            steps: r.steps.map((s: RuleStep) => {
+              if (s.id !== stepId) return s;
+              return {
+                ...s,
+                upstreamBindings: (s.upstreamBindings ?? []).filter((binding: StepInputBinding) => binding.stepId !== bindingStepId),
+              };
+            }),
+          };
+        }),
       };
     });
   };
@@ -695,23 +815,145 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
   const activeRule = data.rules.find(r => r.id === activeRuleId) || data.rules[0];
   const focusedStep = activeRule?.steps.find(s => s.id === focusedStepId);
   const activeDragOrHoverFactor = draggedFactor || hoveredFactor;
-  const effectiveSubject = focusedStep?.targetSubject || data.primarySubject;
-  
-  // Step Intelligence: Determine the "Intent" of the focused step
-  const getStepIntent = (subject: FactorTarget) => {
+  const effectiveInputSubject = focusedStep ? getEffectiveInputSubject(focusedStep, data.primarySubject) : data.primarySubject;
+  const effectiveOutputSubject = focusedStep ? getEffectiveOutputSubject(focusedStep, data.primarySubject) : data.primarySubject;
+  const effectiveAction = focusedStep ? getEffectiveStepAction(focusedStep) : 'VALIDATE';
+
+  const getSubjectLabel = (subject: FactorTarget) => {
     switch(subject) {
-      case 'LOCATION': return '库位空间与存取效率优化';
-      case 'INVENTORY_LOT': return '批次新鲜度与周转控制';
-      case 'EQUIPMENT': return '自动化设备负载与效能平衡';
-      case 'ORDER_LINE': return '订单特性匹配与合规校验';
-      case 'CONTEXT': return '业务全局场景预判与拦截';
-      case 'OPERATOR': return '岗位技能要求与人效优化';
-      case 'CARRIER': return '容器利用率与载具选型';
-      default: return '通用业务策略处理阶段';
+      case 'LOCATION': return '🏬 库位';
+      case 'INVENTORY_LOT': return '📦 库存';
+      case 'ORDER_LINE': return '📑 单据';
+      case 'EQUIPMENT': return '🤖 设备';
+      case 'OPERATOR': return '👤 班次';
+      case 'CARRIER': return '🚢 载具';
+      case 'STAGING_AREA': return '🏢 集货';
+      default: return '⚙️ 环境';
     }
   };
 
-  const stepIntentName = getStepIntent(effectiveSubject);
+  const stepTypeDescriptions: Record<RuleStepType, string> = {
+    FILTER: '处理模式：先判断当前主体是否保留',
+    SELECT: '处理模式：对候选集做评分、排序与选优',
+    TRANSFORM: '处理模式：把输入主体转换成新的输出主体',
+    GATEWAY: '处理模式：基于条件决定后续分支路径',
+  };
+
+  const stepActionDescriptions: Record<RuleStepAction, string> = {
+    NONE: '暂不声明具体动作',
+    VALIDATE: '做校验判断',
+    SELECT: '做选优',
+    RECOMMEND: '输出推荐结果',
+    ASSIGN: '执行分配或指派',
+    ROUTE: '决定路由去向',
+    LOCK: '执行锁定',
+    ALLOCATE: '执行资源分拨',
+    GENERATE_TASK: '生成任务',
+    SPLIT: '拆分对象或任务',
+    SUSPEND: '挂起等待处理',
+    RELEASE: '执行释放',
+    REDIRECT: '重定向到新去向',
+  };
+
+  type StepDetailSectionKey = 'filters' | 'sorters' | 'config';
+  type StepDetailPriority = 'primary' | 'secondary' | 'tertiary';
+
+  const sectionPriorityClasses: Record<StepDetailPriority, { container: string; title: string; hint: string }> = {
+    primary: {
+      container: 'rounded-[16px] border border-blue-200 bg-blue-50/40 p-4',
+      title: 'text-theme-ink',
+      hint: 'text-blue-700',
+    },
+    secondary: {
+      container: 'rounded-[16px] border border-slate-200 bg-white p-4',
+      title: 'text-theme-ink',
+      hint: 'text-slate-500',
+    },
+    tertiary: {
+      container: 'rounded-[16px] border border-slate-100 bg-slate-50/70 p-4',
+      title: 'text-slate-600',
+      hint: 'text-slate-400',
+    },
+  };
+
+  const getStepDetailPresentation = (stepType: RuleStepType) => {
+    switch (stepType) {
+      case 'SELECT':
+        return {
+          sections: [
+            { key: 'filters' as const, priority: 'primary' as const, hint: '先用硬性约束过滤不合格候选，再进入评分选优。', hideEmptyState: false },
+            { key: 'sorters' as const, priority: 'secondary' as const, hint: '在通过约束的候选中做评分、排序和最优选择。', hideEmptyState: false },
+            { key: 'config' as const, priority: 'tertiary' as const, hint: '通过参数补充排序偏好或选择模式。', hideEmptyState: false },
+          ],
+        };
+      case 'TRANSFORM':
+        return {
+          sections: [
+            { key: 'config' as const, priority: 'primary' as const, hint: '本步骤重点在主体迁移、映射规则和转换参数。', hideEmptyState: false },
+            { key: 'filters' as const, priority: 'secondary' as const, hint: '先约束哪些输入对象可以进入转换。', hideEmptyState: false },
+            { key: 'sorters' as const, priority: 'tertiary' as const, hint: '评分只作为辅助，不是当前步骤主轴。', hideEmptyState: false },
+          ],
+        };
+      case 'GATEWAY':
+        return {
+          sections: [
+            { key: 'filters' as const, priority: 'primary' as const, hint: '本步骤重点在条件判断和后续流向控制。', hideEmptyState: false },
+            { key: 'config' as const, priority: 'secondary' as const, hint: '通过参数补充分支、路由或门槛逻辑。', hideEmptyState: false },
+            { key: 'sorters' as const, priority: 'tertiary' as const, hint: '网关步骤通常不依赖评分排序。', hideEmptyState: true },
+          ],
+        };
+      case 'FILTER':
+      default:
+        return {
+          sections: [
+            { key: 'filters' as const, priority: 'primary' as const, hint: '本步骤重点在判断是否保留当前主体。', hideEmptyState: false },
+            { key: 'config' as const, priority: 'secondary' as const, hint: '通过参数补充过滤门槛与执行边界。', hideEmptyState: false },
+            { key: 'sorters' as const, priority: 'tertiary' as const, hint: '评分只作为补充能力，不抢主视觉。', hideEmptyState: false },
+          ],
+        };
+    }
+  };
+
+  const stepBindingModeDescriptions: Record<NonNullable<StepInputBinding['mode']>, { label: string; hint: string }> = {
+    ONE: {
+      label: '单结果',
+      hint: '只引用一个明确结果，适合最优库位、最终推荐项。',
+    },
+    LIST: {
+      label: '候选列表',
+      hint: '引用一批候选结果，适合库存池、需求集合、评分输入。',
+    },
+    MAP: {
+      label: '索引映射',
+      hint: '按键组织上游结果，适合按 SKU / 门店 / 温区做索引查询。',
+    },
+  };
+
+  const getStepIntentLabel = (action: RuleStepAction, input: FactorTarget, output: FactorTarget) => {
+    const actionLabel = {
+      VALIDATE: '校验',
+      SELECT: '优选',
+      RECOMMEND: '推荐',
+      ASSIGN: '分配',
+      ROUTE: '路由',
+      LOCK: '锁定',
+      ALLOCATE: '分拨',
+      GENERATE_TASK: '生成任务',
+      SPLIT: '拆分',
+      SUSPEND: '挂起',
+      RELEASE: '释放',
+      REDIRECT: '改道',
+      NONE: '处理',
+    }[action] ?? '处理';
+
+    if (input === output) {
+      return `${actionLabel}${getSubjectLabel(input).replace(/^.[ ]/, '')}`;
+    }
+
+    return `${actionLabel}${getSubjectLabel(input).replace(/^.[ ]/, '')} → ${getSubjectLabel(output).replace(/^.[ ]/, '')}`;
+  };
+
+  const stepIntentName = getStepIntentLabel(effectiveAction, effectiveInputSubject, effectiveOutputSubject);
   
   // Group factors by targetObject
   const factorGroups = mockFactors
@@ -721,8 +963,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
     )
     .sort((a, b) => {
        // Primary sorting by focused step subject
-       if (a.targetObject === effectiveSubject && b.targetObject !== effectiveSubject) return -1;
-       if (a.targetObject !== effectiveSubject && b.targetObject === effectiveSubject) return 1;
+       if (a.targetObject === effectiveInputSubject && b.targetObject !== effectiveInputSubject) return -1;
+       if (a.targetObject !== effectiveInputSubject && b.targetObject === effectiveInputSubject) return 1;
        
        // Secondary sorting by strategy default
        if (a.targetObject === data.primarySubject && b.targetObject !== data.primarySubject) return -1;
@@ -835,7 +1077,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                 <div key={target} className="py-2 border-b border-[#F2F2F7] last:border-none">
                   <div className="px-5 py-2 text-[10px] font-bold text-theme-muted uppercase tracking-[0.15em] bg-[#F2F2F7]/50 flex items-center justify-between sticky top-[-1px] z-[5] backdrop-blur-sm">
                     <span className="flex items-center gap-2">
-                      {target === effectiveSubject && <div className="w-1 h-3 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>}
+                      {target === effectiveInputSubject && <div className="w-1 h-3 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>}
                       {target === 'LOCATION' ? '🏬 库位空间 (Location)' : 
                        target === 'INVENTORY_LOT' ? '📦 库存批次 (Inv Lot)' : 
                        target === 'EQUIPMENT' ? '🤖 物理设备 (Equipment)' : 
@@ -860,9 +1102,9 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       onDragEnd={() => setDraggedFactor(null)}
                       onMouseEnter={() => setHoveredFactor(factor)}
                       onMouseLeave={() => setHoveredFactor(null)}
-                      className={`px-3 py-3 rounded-[10px] flex items-center gap-3 text-[12px] cursor-grab active:cursor-grabbing transition-all border border-transparent ${factor.targetObject === effectiveSubject ? 'bg-blue-50/40 border-blue-100/50' : 'hover:bg-white hover:border-theme-border/50 hover:shadow-md'}`}
+                      className={`px-3 py-3 rounded-[10px] flex items-center gap-3 text-[12px] cursor-grab active:cursor-grabbing transition-all border border-transparent ${factor.targetObject === effectiveInputSubject ? 'bg-blue-50/40 border-blue-100/50' : 'hover:bg-white hover:border-theme-border/50 hover:shadow-md'}`}
                     >
-                      <div className={`w-8 h-8 rounded-[8px] flex items-center justify-center text-[14px] transition-all shadow-sm shrink-0 ${factor.targetObject === effectiveSubject ? 'bg-blue-600 text-white ring-4 ring-blue-500/10' : 'bg-white border border-theme-border group-hover:bg-theme-bg'}`}>
+                      <div className={`w-8 h-8 rounded-[8px] flex items-center justify-center text-[14px] transition-all shadow-sm shrink-0 ${factor.targetObject === effectiveInputSubject ? 'bg-blue-600 text-white ring-4 ring-blue-500/10' : 'bg-white border border-theme-border group-hover:bg-theme-bg'}`}>
                         {factor.targetObject === 'LOCATION' ? '🏬' : 
                          factor.targetObject === 'INVENTORY_LOT' ? '📦' : 
                          factor.targetObject === 'EQUIPMENT' ? '🤖' : 
@@ -873,10 +1115,10 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <div className={`font-bold tracking-tight truncate ${factor.targetObject === effectiveSubject ? 'text-blue-900' : 'text-theme-ink opacity-85'}`}>
+                          <div className={`font-bold tracking-tight truncate ${factor.targetObject === effectiveInputSubject ? 'text-blue-900' : 'text-theme-ink opacity-85'}`}>
                             {factor.name}
                           </div>
-                          {factor.targetObject === effectiveSubject && (
+                          {factor.targetObject === effectiveInputSubject && (
                             <div className="h-1 w-1 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"></div>
                           )}
                         </div>
@@ -892,7 +1134,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                           </span>
                           
                           {/* Recognition Badge */}
-                          {factor.targetObject === effectiveSubject ? (
+                          {factor.targetObject === effectiveInputSubject ? (
                             <span className="text-[9px] text-blue-700 font-extrabold bg-blue-100/50 px-1.5 rounded-[3px] border border-blue-200/40">
                                NATIVE (原生)
                             </span>
@@ -904,7 +1146,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                         </div>
                         
                         {/* Recommendation Highlight */}
-                        {factor.targetObject === effectiveSubject && (
+                        {factor.targetObject === effectiveInputSubject && (
                           <div className="mt-2 text-[8px] bg-theme-success/10 text-theme-success border border-theme-success/20 px-2 py-0.5 rounded-full flex items-center gap-1 w-fit animate-in fade-in zoom-in-95">
                              <div className="w-1 h-1 rounded-full bg-theme-success animate-pulse"></div>
                              完美匹配当前阶段
@@ -1015,7 +1257,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                      )}
                      <div className="w-px h-4 bg-slate-200 mx-1"></div>
                      <span className="text-[11px] text-theme-muted font-medium italic opacity-70">
-                        * 已挂载 {data.rules.length} 个规则维度及 {sceneStats.steps} 个业务执行动作
+                        * 已挂载 {data.rules.length} 个规则维度及 {sceneStats.steps} 个语义步骤
                      </span>
                   </div>
                </div>
@@ -1086,6 +1328,9 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                   const showGroupHeader = idx === 0 || rule.priorityGroup !== data.rules[idx - 1].priorityGroup;
                   const isLast = idx === data.rules.length - 1;
                   const nextRule = !isLast ? data.rules[idx + 1] : null;
+                  const ruleSteps = rule.steps ?? [];
+                  const firstRuleStep = ruleSteps[0];
+                  const ruleSubjects = Array.from(new Set(ruleSteps.flatMap((s: RuleStep) => [getEffectiveInputSubject(s, data.primarySubject), getEffectiveOutputSubject(s, data.primarySubject)])));
 
                   return (
                   <React.Fragment key={rule.id}>
@@ -1250,12 +1495,10 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                             {/* Target Subject Summary */}
                             <div className="flex items-center gap-1 mt-1">
                                <div className="w-3 h-3 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[8px] shrink-0 font-bold">
-                                  {rule.steps[0]?.targetSubject === 'POLICY' ? '⚖️' :
-                                   rule.steps[0]?.targetSubject === 'LOCATION' ? '📦' :
-                                   rule.steps[0]?.targetSubject === 'TASK' ? '📋' : 'T'}
+                                  {(firstRuleStep ? getSubjectLabel(getEffectiveInputSubject(firstRuleStep, data.primarySubject)) : getSubjectLabel(data.primarySubject)).charAt(0)}
                                </div>
                                <div className="text-[10px] font-bold text-slate-600 line-clamp-1">
-                                 {Array.from(new Set(rule.steps.map(s => s.targetSubject || data.primarySubject))).join(' / ')}
+                                 {ruleSubjects.length > 0 ? ruleSubjects.join(' / ') : getSubjectLabel(data.primarySubject)}
                                </div>
                             </div>
                             
@@ -1275,7 +1518,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                             <div className="mt-1 flex">
                                {rule.flowControl === 'JUMP' ? (
                                   <Badge variant="neutral" className="text-[8px] bg-purple-50 text-purple-600 border-purple-200">决策路由节点 (Decision)</Badge>
-                               ) : (rule.flowControl === 'TERMINATE' || (!rule.flowControl && rule.steps.some(s => s.flowControl === 'TERMINATE'))) ? (
+                               ) : (rule.flowControl === 'TERMINATE' || (!rule.flowControl && ruleSteps.some(s => s.flowControl === 'TERMINATE'))) ? (
                                   <Badge variant="warning" className="text-[8px] bg-orange-50 text-orange-600 border-orange-200">拦截/终结节点</Badge>
                                ) : (
                                   <Badge variant="success" className="text-[8px] bg-emerald-50 text-emerald-600 border-emerald-200">流转/过渡节点</Badge>
@@ -1588,7 +1831,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                          <h4 className="text-[12px] font-black text-blue-900 mb-2 flex items-center gap-2">
                            <Activity className="w-3.5 h-3.5" /> 策略权重与逻辑洞察 (Insights)
                          </h4>
-                         <p className="text-[10px] text-blue-700/70 mb-4 leading-tight">基于当前执行动作的平衡性与业务特征实时评估：</p>
+                         <p className="text-[10px] text-blue-700/70 mb-4 leading-tight">基于当前语义步骤的平衡性与业务特征实时评估：</p>
                          <RadarInsight rule={activeRule} />
                          <BusinessInsight rule={activeRule} />
                          
@@ -1714,7 +1957,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                 <div className="flex items-center gap-2 mt-4 mb-2 ml-1">
                   <div className="w-1.5 h-4 bg-theme-accent rounded-full"></div>
                   <div className="font-bold text-[14px] text-theme-ink uppercase tracking-wider">
-                    {activeRule.type === 'GATE' ? '分流路径逻辑配置 (Routing Branches)' : '作业执行动作流 (Operational Step Sequence)'}
+                    {activeRule.type === 'GATE' ? '分流路径逻辑配置 (Routing Branches)' : '语义步骤流 (Semantic Step Sequence)'}
                   </div>
                 </div>
 
@@ -1891,449 +2134,608 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     <div className="absolute left-9 top-8 bottom-8 w-[2px] bg-theme-bg pointer-events-none"></div>
                   )}
 
-                  {activeRule.steps.map((step, idx) => (
-                    <div key={step.id}>
+                  {activeRule.steps.map((step, idx) => {
+                    const stepFilters = step.filters ?? [];
+                    const stepSorters = step.sorters ?? [];
+                    const stepConfig = step.config ?? {};
+                    const stepUpstreamBindings = step.upstreamBindings ?? [];
+                    const stepInputSubject = getEffectiveInputSubject(step, data.primarySubject);
+                    const stepOutputSubject = getEffectiveOutputSubject(step, data.primarySubject);
+                    const stepAction = getEffectiveStepAction(step);
+                    const stepType = getEffectiveStepType(step);
+                    const stepIntent = getStepIntentLabel(stepAction, stepInputSubject, stepOutputSubject);
+                    const isSubjectFocused = activeDragOrHoverFactor?.targetObject === stepInputSubject;
+                    const detailPresentation = getStepDetailPresentation(stepType);
+                    const stepTypeTone = stepType === 'SELECT'
+                      ? 'bg-orange-50 text-orange-700 border-orange-100'
+                      : stepType === 'TRANSFORM'
+                        ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                        : stepType === 'GATEWAY'
+                          ? 'bg-purple-50 text-purple-700 border-purple-100'
+                          : 'bg-slate-100 text-slate-600 border-slate-200';
+                    const configEntries = Object.entries(stepConfig);
+                    const configCount = configEntries.length;
+                    const hasQtySensitiveConfig = configEntries.some(([key]) => key.includes('数量') || key.includes('Qty'));
+                    const primaryConfigEntries = configEntries.slice(0, 3);
+                    return (
+                      <div key={step.id}>
                     <div 
                       className="relative z-10"
                       onClick={() => setFocusedStepId(step.id)}
                     >
-                      <div className={`bg-white border rounded-[20px] shadow-sm p-6 transition-all duration-300 cursor-pointer group/step ${focusedStepId === step.id ? 'border-theme-primary ring-8 ring-theme-primary/5 shadow-2xl -translate-y-1' : (activeDragOrHoverFactor?.targetObject === (step.targetSubject || data.primarySubject)) ? 'border-blue-400 bg-blue-50/10 ring-4 ring-blue-500/10 scale-[1.01]' : 'border-theme-border hover:border-theme-primary/30 hover:shadow-md'}`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-5 flex-1">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-[18px] shadow-lg shrink-0 transition-all ${focusedStepId === step.id ? 'bg-theme-primary rotate-3 transform' : (activeDragOrHoverFactor?.targetObject === (step.targetSubject || data.primarySubject)) ? 'bg-blue-600 animate-bounce' : 'bg-slate-700'}`}>
-                              {idx + 1}
-                              <div className="absolute -top-6 -left-1 flex flex-col items-start opacity-0 group-hover/step:opacity-100 transition-opacity">
-                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-white/80 px-2 py-0.5 rounded border border-slate-200 shadow-sm">
-                                    步骤 (Step) #{idx + 1}
-                                 </span>
-                              </div>
-                            </div>
-                            <div className="flex flex-col flex-1 pl-1">
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center px-2 py-0.5 bg-slate-900/5 border border-slate-200 rounded-md gap-1.5 group/subj relative cursor-pointer hover:bg-slate-900/10 transition-colors">
-                                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">操作主体:</span>
-                                   <span className="text-[10px] font-black text-blue-600">
-                                      {step.targetSubject === 'LOCATION' ? '🏬 库位' : 
-                                       step.targetSubject === 'INVENTORY_LOT' ? '📦 库存' : 
-                                       step.targetSubject === 'ORDER_LINE' ? '📑 单据' : 
-                                       step.targetSubject === 'EQUIPMENT' ? '🤖 设备' : 
-                                       step.targetSubject === 'OPERATOR' ? '👤 班次' : 
-                                       step.targetSubject === 'CARRIER' ? '🚢 载具' : 
-                                       step.targetSubject === 'STAGING_AREA' ? '🏢 集货' : '⚙️ 环境'}
+                      <div className={`bg-white border rounded-[20px] shadow-sm p-4 transition-all duration-300 cursor-pointer group/step ${focusedStepId === step.id ? 'border-theme-primary ring-8 ring-theme-primary/5 shadow-2xl -translate-y-1' : isSubjectFocused ? 'border-blue-400 bg-blue-50/10 ring-4 ring-blue-500/10 scale-[1.01]' : 'border-theme-border hover:border-theme-primary/30 hover:shadow-md'}`}>
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className={`relative w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[16px] shadow-lg shrink-0 transition-all ${focusedStepId === step.id ? 'bg-theme-primary rotate-3 transform' : isSubjectFocused ? 'bg-blue-600 animate-bounce' : 'bg-slate-700'}`}>
+                                {idx + 1}
+                                <div className="absolute -top-6 -left-1 flex flex-col items-start opacity-0 group-hover/step:opacity-100 transition-opacity">
+                                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-white/80 px-2 py-0.5 rounded border border-slate-200 shadow-sm">
+                                      步骤 (Step) #{idx + 1}
                                    </span>
-                                   <select 
-                                     className="absolute inset-0 opacity-0 cursor-pointer"
-                                     value={step.targetSubject || data.primarySubject}
-                                     onChange={(e) => {
-                                       e.stopPropagation();
-                                       handleUpdateStepSubject(step.id, e.target.value);
-                                     }}
-                                   >
-                                      <option value="LOCATION">LOCATION (库位对象)</option>
-                                      <option value="INVENTORY_LOT">INVENTORY_LOT (库存批次)</option>
-                                      <option value="ORDER_LINE">ORDER_LINE (单据细项)</option>
-                                      <option value="EQUIPMENT">EQUIPMENT (物理设备)</option>
-                                      <option value="OPERATOR">OPERATOR (人员/班次)</option>
-                                      <option value="CARRIER">CARRIER (装箱载具)</option>
-                                      <option value="STAGING_AREA">STAGING_AREA (发货集货区)</option>
-                                      <option value="CONTEXT">CONTEXT (运行上下文)</option>
-                                   </select>
-                                   <ChevronDown className="w-2.5 h-2.5 text-slate-400 group-hover/subj:text-blue-500 transition-colors" />
-                                </div>
-                                <input
-                                  className="font-bold text-[15px] text-theme-ink bg-transparent border-b border-transparent hover:border-theme-border focus:border-theme-primary focus:outline-none transition-all px-1 min-w-[200px]"
-                                  value={step.name}
-                                  onChange={(e) => handleUpdateStepName(step.id, e.target.value)}
-                                  placeholder="执行动作显示名称..."
-                                />
-                                <div className="flex items-center bg-slate-100/50 rounded-lg p-0.5 scale-90 border border-slate-200/50">
-                                   <button 
-                                     onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleUpdateStep(step.id, { flowControl: 'TERMINATE' });
-                                     }}
-                                     className={`px-2 py-0.5 rounded-md text-[9px] font-black transition-all ${step.flowControl === 'TERMINATE' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}
-                                   >
-                                      满足即止
-                                   </button>
-                                   <button 
-                                     onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleUpdateStep(step.id, { flowControl: 'CONTINUE' });
-                                     }}
-                                     className={`px-2 py-0.5 rounded-md text-[9px] font-black transition-all ${step.flowControl === 'CONTINUE' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
-                                   >
-                                      综合评分流转
-                                   </button>
                                 </div>
                               </div>
-                                <div className="text-[12px] text-theme-muted mt-2 leading-none font-medium flex items-center gap-3">
-                                  <div className="flex items-center gap-1 group/failover cursor-pointer relative bg-theme-bg py-1 px-2 rounded-[4px] border border-transparent hover:border-theme-border">
-                                    <span className={step.failoverAction === 'ERROR_SUSPEND' ? 'text-red-500 font-bold' : ''}>
-                                      {step.failoverAction === 'ERROR_SUSPEND' ? '报错并挂起' : 
-                                       step.failoverAction === 'PIPELINE_NEXT' ? '流转全链路下一环节' :
-                                       step.failoverAction === 'SPLIT_NEW_WO' ? '截断生成新WOCR' : '降级/下一环节'}
-                                    </span>
-                                    <select 
-                                      className="absolute inset-0 opacity-0 cursor-pointer"
-                                      value={step.failoverAction}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setData(prev => {
-                                          if (!prev) return prev;
-                                          return {
-                                            ...prev,
-                                            rules: prev.rules.map(r => {
-                                              if (r.id !== activeRuleId) return r;
-                                              return {
-                                                ...r,
-                                                steps: r.steps.map(s => s.id === step.id ? { ...s, failoverAction: val as any } : s)
-                                              };
-                                            })
-                                          };
-                                        });
+                              <div className="flex flex-col flex-1 min-w-0 gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider border ${stepTypeTone}`}>
+                                    {stepType}
+                                  </span>
+                                  <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                                    {stepAction}
+                                  </span>
+                                  <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 text-[10px] font-black tracking-tight max-w-full">
+                                    <span className="truncate">{stepInputSubject} → {stepOutputSubject}</span>
+                                  </span>
+                                  <span className="inline-flex items-center rounded-full bg-slate-50 text-slate-600 border border-slate-200 px-2 py-0.5 text-[10px] font-black tracking-tight">
+                                    过滤 {stepFilters.length} · 因子 {stepSorters.length} · 参数 {configCount}
+                                  </span>
+                                </div>
+
+                                <input
+                                  className="font-bold text-[14px] text-theme-ink bg-transparent border-b border-transparent hover:border-theme-border focus:border-theme-primary focus:outline-none transition-all px-1 w-full min-w-0"
+                                  value={step.name}
+                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateStepName(step.id, e.target.value)}
+                                  placeholder="步骤显示名称..."
+                                />
+
+                                <div className="rounded-[14px] border border-slate-200 bg-slate-50/70 px-3 py-2 space-y-1.5">
+                                  <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                    <div className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white pl-2 pr-1.5 gap-1.5 group/subj relative min-w-0 max-w-full hover:border-blue-200 hover:bg-blue-50/40 transition-colors">
+                                      <span className="font-black text-slate-500 uppercase tracking-wider shrink-0">输入</span>
+                                      <span className="font-black text-blue-600 truncate">{getSubjectLabel(stepInputSubject)}</span>
+                                      <select
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                        value={stepInputSubject}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                          e.stopPropagation();
+                                          handleUpdateStepSemantics(step.id, { inputSubject: e.target.value as FactorTarget });
+                                        }}
+                                      >
+                                        <option value="LOCATION">LOCATION (库位对象)</option>
+                                        <option value="INVENTORY_LOT">INVENTORY_LOT (库存批次)</option>
+                                        <option value="ORDER_LINE">ORDER_LINE (单据细项)</option>
+                                        <option value="EQUIPMENT">EQUIPMENT (物理设备)</option>
+                                        <option value="OPERATOR">OPERATOR (人员/班次)</option>
+                                        <option value="CARRIER">CARRIER (装箱载具)</option>
+                                        <option value="STAGING_AREA">STAGING_AREA (发货集货区)</option>
+                                        <option value="CONTEXT">CONTEXT (运行上下文)</option>
+                                      </select>
+                                      <ChevronDown className="w-3 h-3 text-slate-400 group-hover/subj:text-blue-500 transition-colors shrink-0" />
+                                    </div>
+
+                                    <div className="inline-flex h-8 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 px-2 text-blue-500 text-[11px] font-black shrink-0">→</div>
+
+                                    <div className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-blue-50 pl-2 pr-1.5 gap-1.5 group/out relative min-w-0 max-w-full hover:bg-blue-100/70 transition-colors">
+                                      <span className="font-black text-blue-700 uppercase tracking-wider shrink-0">输出</span>
+                                      <span className="font-black text-blue-700 truncate">{getSubjectLabel(stepOutputSubject)}</span>
+                                      <select
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                        value={stepOutputSubject}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                          e.stopPropagation();
+                                          handleUpdateStepSemantics(step.id, { outputSubject: e.target.value as FactorTarget });
+                                        }}
+                                      >
+                                        <option value="LOCATION">LOCATION (库位对象)</option>
+                                        <option value="INVENTORY_LOT">INVENTORY_LOT (库存批次)</option>
+                                        <option value="ORDER_LINE">ORDER_LINE (单据细项)</option>
+                                        <option value="EQUIPMENT">EQUIPMENT (物理设备)</option>
+                                        <option value="OPERATOR">OPERATOR (人员/班次)</option>
+                                        <option value="CARRIER">CARRIER (装箱载具)</option>
+                                        <option value="STAGING_AREA">STAGING_AREA (发货集货区)</option>
+                                        <option value="CONTEXT">CONTEXT (运行上下文)</option>
+                                      </select>
+                                      <ChevronDown className="w-3 h-3 text-blue-400 group-hover/out:text-blue-600 transition-colors shrink-0" />
+                                    </div>
+
+                                    <div className="inline-flex h-8 items-center rounded-lg border border-violet-100 bg-white/80 pl-2 pr-1.5 gap-1.5 text-violet-800 min-w-0 max-w-full relative group/type hover:border-violet-200">
+                                      <span className="font-black shrink-0">决策</span>
+                                      <span className="truncate">{stepTypeDescriptions[stepType] ?? '处理模式：按当前步骤配置执行'}</span>
+                                      <select
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                        value={stepType}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                          e.stopPropagation();
+                                          handleUpdateStep(step.id, { stepType: e.target.value as RuleStep['stepType'] });
+                                        }}
+                                      >
+                                        <option value="FILTER">FILTER</option>
+                                        <option value="TRANSFORM">TRANSFORM</option>
+                                        <option value="RECOMMEND">RECOMMEND</option>
+                                      </select>
+                                      <ChevronDown className="w-3 h-3 text-violet-400 group-hover/type:text-violet-600 transition-colors shrink-0" />
+                                    </div>
+
+                                    <div className="inline-flex h-8 items-center rounded-lg border border-emerald-100 bg-white/80 pl-2 pr-1.5 gap-1.5 text-emerald-800 min-w-0 max-w-full relative group/action hover:border-emerald-200">
+                                      <span className="font-black shrink-0">动作</span>
+                                      <span className="truncate">{stepActionDescriptions[stepAction] ?? '按当前步骤结果执行动作'}</span>
+                                      <select
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                        value={stepAction}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                          e.stopPropagation();
+                                          handleUpdateStep(step.id, { action: e.target.value as RuleStep['action'] });
+                                        }}
+                                      >
+                                        <option value="NONE">NONE</option>
+                                        <option value="VALIDATE">VALIDATE</option>
+                                        <option value="SELECT">SELECT</option>
+                                        <option value="RECOMMEND">RECOMMEND</option>
+                                        <option value="ALLOCATE">ALLOCATE</option>
+                                        <option value="ASSIGN">ASSIGN</option>
+                                        <option value="ROUTE">ROUTE</option>
+                                        <option value="LOCK">LOCK</option>
+                                        <option value="GENERATE_TASK">GENERATE_TASK</option>
+                                        <option value="SPLIT">SPLIT</option>
+                                        <option value="SUSPEND">SUSPEND</option>
+                                        <option value="RELEASE">RELEASE</option>
+                                        <option value="REDIRECT">REDIRECT</option>
+                                      </select>
+                                      <ChevronDown className="w-3 h-3 text-emerald-400 group-hover/action:text-emerald-600 transition-colors shrink-0" />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed border-blue-200 bg-white/90 px-2 py-1.5 min-w-0">
+                                    <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-blue-600 shrink-0">
+                                      <LinkIcon className="w-3 h-3 shrink-0" />
+                                      <span>上游依赖</span>
+                                      {stepUpstreamBindings.length > 0 && (
+                                        <span className="inline-flex items-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[9px] font-black text-white">{stepUpstreamBindings.length}</span>
+                                      )}
+                                    </div>
+
+                                    {stepUpstreamBindings.length > 0 ? (
+                                      <div className="flex flex-1 flex-wrap items-center gap-1 min-w-0">
+                                        {stepUpstreamBindings.map((binding: StepInputBinding) => {
+                                          const availableSourceSteps = activeRule.steps.slice(0, idx);
+                                          const sourceStep = availableSourceSteps.find((candidate: RuleStep) => candidate.id === binding.stepId);
+                                          const duplicateStepIds = new Set(
+                                            stepUpstreamBindings
+                                              .filter((candidate: StepInputBinding) => candidate.stepId !== binding.stepId)
+                                              .map((candidate: StepInputBinding) => candidate.stepId)
+                                          );
+                                          const selectableSourceSteps = availableSourceSteps.filter((candidate: RuleStep) => candidate.id === binding.stepId || !duplicateStepIds.has(candidate.id));
+                                          const bindingMode = binding.mode ?? 'LIST';
+                                          const bindingModeMeta = stepBindingModeDescriptions[bindingMode];
+                                          return (
+                                            <div key={`${step.id}-${binding.stepId}-${binding.alias}`} className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-blue-50/50 min-w-0 max-w-full overflow-hidden">
+                                              <div className="relative flex min-w-[110px] max-w-[180px] items-center px-2 py-1">
+                                                <span className="block truncate pr-4 text-[10px] font-black text-slate-800">{sourceStep?.name ?? '选择前序步骤'}</span>
+                                                <select
+                                                  className="absolute inset-0 opacity-0 cursor-pointer"
+                                                  value={binding.stepId}
+                                                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                    e.stopPropagation();
+                                                    const nextStepId = e.target.value;
+                                                    const nextSourceStep = availableSourceSteps.find((candidate: RuleStep) => candidate.id === nextStepId);
+                                                    handleUpdateUpstreamBinding(step.id, binding.stepId, {
+                                                      stepId: nextStepId,
+                                                      alias: nextSourceStep
+                                                        ? nextSourceStep.name.replace(/\s+/g, '_').replace(/[^\w一-龥]/g, '').slice(0, 24) || 'upstream'
+                                                        : binding.alias,
+                                                    });
+                                                  }}
+                                                >
+                                                  {selectableSourceSteps.map((candidate: RuleStep) => (
+                                                    <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                                                  ))}
+                                                </select>
+                                                <ChevronDown className="w-3 h-3 text-blue-400 absolute right-2 top-1/2 -translate-y-1/2" />
+                                              </div>
+
+                                              <span className="h-4 w-px bg-blue-100 shrink-0" />
+
+                                              <Input
+                                                value={binding.alias}
+                                                className="h-8 w-[84px] rounded-none border-0 bg-transparent px-2 text-[10px] shadow-none focus-visible:ring-0"
+                                                onClick={(e: React.MouseEvent<HTMLInputElement>) => e.stopPropagation()}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                  e.stopPropagation();
+                                                  handleUpdateUpstreamBinding(step.id, binding.stepId, { alias: e.target.value });
+                                                }}
+                                              />
+
+                                              <span className="h-4 w-px bg-blue-100 shrink-0" />
+
+                                              <div className="relative flex items-center px-2 py-1 shrink-0">
+                                                <span className="pr-4 text-[10px] font-black text-indigo-700">{bindingModeMeta.label}</span>
+                                                <select
+                                                  className="absolute inset-0 opacity-0 cursor-pointer"
+                                                  value={bindingMode}
+                                                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                    e.stopPropagation();
+                                                    handleUpdateUpstreamBinding(step.id, binding.stepId, { mode: e.target.value as StepInputBinding['mode'] });
+                                                  }}
+                                                >
+                                                  <option value="ONE">ONE</option>
+                                                  <option value="LIST">LIST</option>
+                                                  <option value="MAP">MAP</option>
+                                                </select>
+                                                <ChevronDown className="w-3 h-3 text-indigo-400 absolute right-2 top-1/2 -translate-y-1/2" />
+                                              </div>
+
+                                              <button
+                                                className={`inline-flex h-8 items-center px-2 text-[10px] font-black shrink-0 transition-colors border-l border-blue-100 ${binding.required ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                                  e.stopPropagation();
+                                                  handleUpdateUpstreamBinding(step.id, binding.stepId, { required: !binding.required });
+                                                }}
+                                              >
+                                                {binding.required ? '必需' : '可选'}
+                                              </button>
+
+                                              <button
+                                                className="inline-flex h-8 w-8 items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors border-l border-blue-100 shrink-0"
+                                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                                  e.stopPropagation();
+                                                  handleRemoveUpstreamBinding(step.id, binding.stepId);
+                                                }}
+                                                title="删除依赖"
+                                              >
+                                                <X className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <div className="text-[10px] text-slate-600">当前只使用主输入；需要时再组合前序结果。</div>
+                                    )}
+
+                                    <Button
+                                      variant="outline"
+                                      className="h-6 px-2 text-[10px] border-blue-200 bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-40 shrink-0 ml-auto"
+                                      disabled={idx === 0 || stepUpstreamBindings.length >= idx}
+                                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                        e.stopPropagation();
+                                        handleAddUpstreamBinding(step.id);
                                       }}
                                     >
-                                      <option value="NEXT_STEP">降级重试</option>
-                                      <option value="PIPELINE_NEXT">全链路下一步</option>
-                                      <option value="SPLIT_NEW_WO">触发拆单</option>
-                                      <option value="ERROR_SUSPEND">挂起异常</option>
-                                    </select>
-                                    <ChevronDown className="w-3 h-3 opacity-40 group-hover/failover:opacity-100 transition-opacity" />
+                                      <Plus className="w-3 h-3 mr-1" />新增
+                                    </Button>
                                   </div>
-                                  <span className="opacity-20 text-theme-muted">|</span>
-                                  <span className="flex items-center gap-1.5 opacity-80">
-                                     <Settings className="w-3.5 h-3.5" /> 
-                                     <strong className="text-theme-ink">{step.sorters.length}</strong> 因子
-                                  </span>
-                                  <span className="opacity-20 text-theme-muted">|</span>
-                                  <span className="opacity-80">
-                                     <strong className="text-theme-ink">{step.filters.length}</strong> 过滤
-                                  </span>
-                                  <span className="opacity-20 text-theme-muted">|</span>
-                                  <span className="opacity-80">
-                                     <strong className="text-theme-ink">{Object.keys(step.config || {}).length}</strong> 参数
-                                  </span>
                                 </div>
-                                <input
-                                  className="font-medium text-[11px] text-theme-muted bg-theme-bg/50 border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all px-2 py-1.5 mt-2.5 w-full rounded-md block placeholder:text-slate-300 shadow-sm"
-                                  value={step.description || ''}
-                                  onChange={(e) => handleUpdateStep(step.id, { description: e.target.value })}
-                                  placeholder="添加步骤说明，描述该配置的内容和业务目的..."
-                                />
-                                {step.config && Object.keys(step.config).length > 0 && (
-                                  <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {Object.entries(step.config).map(([k, v]) => (
-                                      <div key={k} className="flex items-center text-[10px] bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded text-slate-500 shadow-sm">
-                                        <span className="font-semibold text-slate-700 mr-1">{k}:</span> {String(v)}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
-                            <div className="flex flex-col gap-1 mr-2">
-                               <button 
-                                 onClick={() => handleMoveStep(step.id, 'up')}
-                                 disabled={idx === 0}
-                                 className={`p-1 rounded hover:bg-slate-100 ${idx === 0 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-blue-500'}`}
-                               >
-                                 <ChevronDown className="w-4 h-4 rotate-180" />
-                               </button>
-                               <button 
-                                 onClick={() => handleMoveStep(step.id, 'down')}
-                                 disabled={idx === activeRule.steps.length - 1}
-                                 className={`p-1 rounded hover:bg-slate-100 ${idx === activeRule.steps.length - 1 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-blue-500'}`}
-                               >
-                                 <ChevronDown className="w-4 h-4" />
-                               </button>
+                            <div className="flex items-center gap-2 shrink-0 self-start">
+                              <div className="flex flex-col gap-1 mr-1">
+                                 <button
+                                   onClick={() => handleMoveStep(step.id, 'up')}
+                                   disabled={idx === 0}
+                                   className={`p-1 rounded hover:bg-slate-100 ${idx === 0 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-blue-500'}`}
+                                 >
+                                   <ChevronDown className="w-4 h-4 rotate-180" />
+                                 </button>
+                                 <button
+                                   onClick={() => handleMoveStep(step.id, 'down')}
+                                   disabled={idx === activeRule.steps.length - 1}
+                                   className={`p-1 rounded hover:bg-slate-100 ${idx === activeRule.steps.length - 1 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-blue-500'}`}
+                                 >
+                                   <ChevronDown className="w-4 h-4" />
+                                 </button>
+                              </div>
+
+                              <button
+                                onClick={() => handleRemoveStep(step.id)}
+                                className="w-9 h-9 flex items-center justify-center text-theme-muted hover:text-red-500 hover:bg-red-50 rounded-full transition-all group/del active:scale-95 border border-transparent hover:border-red-100"
+                                title="删除阶段"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
                             </div>
-
-                            <div className="relative shrink-0">
-                               <select 
-                                 className="h-9 px-4 pr-10 bg-theme-bg border border-theme-border rounded-[8px] text-[13px] font-medium text-theme-ink appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-theme-primary/10 transition-all min-w-[120px]"
-                                 value={step.flowControl}
-                                 onChange={(e) => {
-                                   const val = e.target.value as any;
-                                   setData(prev => {
-                                     if (!prev) return prev;
-                                     return {
-                                       ...prev,
-                                       rules: prev.rules.map(r => {
-                                         if (r.id !== activeRuleId) return r;
-                                         return {
-                                           ...r,
-                                           steps: r.steps.map(s => s.id === step.id ? { ...s, flowControl: val } : s)
-                                         };
-                                       })
-                                     };
-                                   });
-                                 }}
-                               >
-                                  <option value="TERMINATE">满足即跳出</option>
-                                  <option value="CONTINUE">继续流转</option>
-                               </select>
-                               <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-theme-muted pointer-events-none" />
-                            </div>
-
-                            <Button 
-                              variant="outline" 
-                              className={`h-9 px-4 text-[13px] border-theme-border font-medium shadow-xs transition-all relative ${editingParamsStepId === step.id ? 'bg-theme-primary/10 border-theme-primary/50 text-theme-primary' : 'bg-white hover:bg-theme-bg'} ${step.config && Object.keys(step.config).some(k => k.includes('数量')) ? 'ring-2 ring-red-500/20 ring-offset-1' : ''}`}
-                              onClick={() => setEditingParamsStepId(editingParamsStepId === step.id ? null : step.id)}
-                            >
-                              <Settings className={`w-3.5 h-3.5 mr-2 ${step.config && Object.keys(step.config).length > 0 ? 'text-blue-500' : 'text-slate-400'}`} />
-                              节点参数
-                              {step.config && Object.keys(step.config).length > 0 && (
-                                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[9px] font-black ${step.config && Object.keys(step.config).some(k => k.includes('数量')) ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-100'}`}>
-                                  {Object.keys(step.config).length}
-                                </span>
-                              )}
-                            </Button>
-
-                            <button 
-                              onClick={() => handleRemoveStep(step.id)}
-                              className="w-9 h-9 flex items-center justify-center text-theme-muted hover:text-red-500 hover:bg-red-50 rounded-full transition-all group/del active:scale-95 border border-transparent hover:border-red-100"
-                              title="删除阶段"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
                           </div>
+
+                          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-2.5 items-center">
+                            <div className="rounded-[16px] border border-slate-200 bg-white px-3 py-2.5 flex flex-wrap items-center gap-2.5">
+                              <div className="flex items-center bg-slate-100/70 rounded-xl p-1 border border-slate-200/70">
+                                <button
+                                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                    e.stopPropagation();
+                                    handleUpdateStep(step.id, { flowControl: 'TERMINATE' });
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${step.flowControl === 'TERMINATE' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                  满足即止
+                                </button>
+                                <button
+                                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                    e.stopPropagation();
+                                    handleUpdateStep(step.id, { flowControl: 'CONTINUE' });
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${step.flowControl === 'CONTINUE' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                  继续流转
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-1 group/failover cursor-pointer relative bg-slate-50 py-1.5 px-2.5 rounded-xl border border-slate-200 min-w-0 hover:border-theme-border flex-1">
+                                <span className="text-[10px] font-black text-slate-500 shrink-0">兜底</span>
+                                <span className={`truncate text-[10px] ${step.failoverAction === 'ERROR_SUSPEND' ? 'text-red-500 font-bold' : 'text-slate-700'}`}>
+                                  {step.failoverAction === 'ERROR_SUSPEND' ? '报错并挂起' :
+                                   step.failoverAction === 'PIPELINE_NEXT' ? '流转全链路下一环节' :
+                                   step.failoverAction === 'SPLIT_NEW_WO' ? '截断生成新WOCR' : '降级/下一环节'}
+                                </span>
+                                <select
+                                  className="absolute inset-0 opacity-0 cursor-pointer"
+                                  value={step.failoverAction}
+                                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                    const val = e.target.value;
+                                    setData((prev: StrategyDetail | null) => {
+                                      if (!prev) return prev;
+                                      return {
+                                        ...prev,
+                                        rules: prev.rules.map((r: StrategyRule) => {
+                                          if (r.id !== activeRuleId) return r;
+                                          return {
+                                            ...r,
+                                            steps: r.steps.map((s: RuleStep) => s.id === step.id ? { ...s, failoverAction: val as any } : s)
+                                          };
+                                        })
+                                      };
+                                    });
+                                  }}
+                                >
+                                  <option value="NEXT_STEP">降级重试</option>
+                                  <option value="PIPELINE_NEXT">全链路下一步</option>
+                                  <option value="SPLIT_NEW_WO">触发拆单</option>
+                                  <option value="ERROR_SUSPEND">挂起异常</option>
+                                </select>
+                                <ChevronDown className="w-3 h-3 opacity-40 group-hover/failover:opacity-100 transition-opacity shrink-0" />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-theme-muted font-medium justify-start xl:justify-end">
+                              <Button
+                                variant="outline"
+                                className={`h-8 px-3 text-[12px] border-theme-border font-medium shadow-xs transition-all justify-center ${editingParamsStepId === step.id ? 'bg-theme-primary/10 border-theme-primary/50 text-theme-primary' : 'bg-white hover:bg-theme-bg'}`}
+                                onClick={() => setEditingParamsStepId(editingParamsStepId === step.id ? null : step.id)}
+                              >
+                                <Settings className={`w-3 h-3 mr-1.5 ${configCount > 0 ? 'text-blue-500' : 'text-slate-400'}`} />
+                                参数
+                                {configCount > 0 && <span className="ml-1 text-[10px] font-black">{configCount}</span>}
+                              </Button>
+                              <span className="opacity-80"><strong className="text-theme-ink">{stepSorters.length}</strong> 因子</span>
+                              <span className="opacity-80"><strong className="text-theme-ink">{stepFilters.length}</strong> 过滤</span>
+                            </div>
+
+                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[10px] text-slate-600 xl:max-w-[260px]">
+                              <span className="font-black">关系：</span>先处理，再决定动作与流转。
+                            </div>
+                          </div>
+
+                          <input
+                            className="font-medium text-[11px] text-theme-muted bg-theme-bg/50 border border-transparent hover:border-slate-200 focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all px-2 py-1.5 w-full rounded-md block placeholder:text-slate-300 shadow-sm"
+                            value={step.description || ''}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateStep(step.id, { description: e.target.value })}
+                            placeholder="添加步骤说明，描述该配置的内容和业务目的..."
+                          />
                         </div>
 
                         {/* Step Details Sub-layers */}
-                        <div className="mt-6 pt-6 border-t border-[#F2F2F7] grid grid-cols-1 gap-5">
-                          {/* Filters */}
-                          <div className="space-y-3">
-                             <div className="flex items-center justify-between">
-                                <div className="text-[11px] font-bold text-theme-muted uppercase tracking-widest flex items-center gap-2">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-theme-primary shadow-[0_0_8px_rgba(0,102,204,0.3)]"></span>
-                                  硬性拦截规则/红线 (Hard Constraints)
-                                  <Info className="w-3.5 h-3.5 text-blue-400 cursor-pointer hover:text-blue-600 transition-colors ml-1" onClick={() => setIsGuideModalOpen(true)} title="了解约束限制的作用" />
-                                </div>
-                                <button 
-                                  onClick={() => handleAddFilter(step.id)}
-                                  className="text-[10px] text-theme-primary hover:underline font-bold flex items-center gap-1 group/add"
-                                >
-                                  <Plus className="w-3 h-3 transition-transform group-hover/add:rotate-90" /> 新增拦截条件
-                                </button>
-                             </div>
-                              <div className="flex flex-wrap gap-4">
-                                 {step.filters.map(filter => (
-                                   <div key={filter.id} className="group/f flex items-center h-12 bg-white border border-slate-200 rounded-[14px] p-1 shadow-sm hover:shadow-lg hover:border-blue-400 transition-all animate-in zoom-in-95 duration-200">
-                                      {/* Field Name Input Area */}
-                                      <div className={`h-full px-4 flex items-center ${filter.field.includes('数量') ? 'bg-red-50 text-red-700' : 'bg-[#F9FAFB]'} rounded-l-[11px] border-r border-slate-100 min-w-[100px] max-w-[160px]`}>
-                                         <div className="relative flex items-center w-full">
-                                           {filter.field.includes('数量') && (
-                                             <div className="absolute -top-6 left-0 whitespace-nowrap bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black animate-pulse shadow-sm">
-                                               QTY_STRICT
-                                             </div>
-                                           )}
-                                           {filter.field.includes('数量') && <Scale className="w-3.5 h-3.5 mr-2 text-red-500" />}
-                                           <input 
-                                             className="w-full bg-transparent text-[13px] font-black placeholder:text-slate-300 focus:outline-none"
-                                             value={filter.field}
-                                           onChange={(e) => handleUpdateFilter(step.id, filter.id, e.target.value, filter.operator, filter.value)}
-                                           placeholder="过滤字段"
-                                         />
-                                       </div>
-                                      </div>
+                        <div className="mt-4 pt-4 border-t border-[#F2F2F7] grid grid-cols-1 gap-4">
+                          {detailPresentation.sections.map((section) => {
+                            const priorityStyle = sectionPriorityClasses[section.priority];
 
-                                      {/* Operator Selector */}
-                                      <div className="relative px-3 h-full flex items-center">
-                                         <select 
-                                           className="bg-transparent text-[13px] font-mono font-bold text-slate-500 appearance-none cursor-pointer focus:outline-none pr-4 hover:text-blue-600"
-                                           value={filter.operator}
-                                           onChange={(e) => handleUpdateFilter(step.id, filter.id, filter.field, e.target.value, filter.value)}
-                                         >
-                                           <option value="==">==</option>
-                                           <option value="!=">!=</option>
-                                           <option value=">=">&gt;=</option>
-                                           <option value="<=">&lt;=</option>
-                                           <option value="IN">IN</option>
-                                         </select>
-                                         <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+                            if (section.key === 'filters') {
+                              return (
+                                <div key="filters" className={`${priorityStyle.container} space-y-2.5`}>
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div className="min-w-0">
+                                      <div className={`text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 ${priorityStyle.title}`}>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-theme-primary shadow-[0_0_8px_rgba(0,102,204,0.3)]"></span>
+                                        硬性拦截规则/红线 (Hard Constraints)
+                                        <Info className="w-3.5 h-3.5 text-blue-400 cursor-pointer hover:text-blue-600 transition-colors ml-1" onClick={() => setIsGuideModalOpen(true)} title="了解约束限制的作用" />
                                       </div>
-
-                                      {/* Value Input Area */}
-                                      <div 
-                                        onClick={() => setEditingParamsStepId(step.id)}
-                                        className={`h-full px-4 flex items-center bg-white border-l border-slate-100 min-w-[120px] cursor-pointer group/val relative ${filter.field.includes('数量') ? 'bg-red-50/30' : 'hover:bg-blue-50/50'}`}
-                                      >
-                                         <div className="flex items-center gap-2 w-full">
-                                           <div className={`flex-1 text-[13px] font-black ${filter.field.includes('数量') ? 'text-red-600' : 'text-orange-600'}`}>
+                                      <p className={`text-[11px] mt-1 ${priorityStyle.hint}`}>{section.hint}</p>
+                                    </div>
+                                    <button
+                                      onClick={() => handleAddFilter(step.id)}
+                                      className="text-[10px] text-theme-primary hover:underline font-bold flex items-center gap-1 group/add shrink-0"
+                                    >
+                                      <Plus className="w-3 h-3 transition-transform group-hover/add:rotate-90" /> 新增拦截条件
+                                    </button>
+                                  </div>
+                                  <div className="flex flex-wrap gap-4">
+                                    {stepFilters.map((filter: RuleStep['filters'][number]) => (
+                                      <div key={filter.id} className="group/f flex items-center h-12 bg-white border border-slate-200 rounded-[14px] p-1 shadow-sm hover:shadow-lg hover:border-blue-400 transition-all animate-in zoom-in-95 duration-200">
+                                        <div className={`h-full px-4 flex items-center ${filter.field.includes('数量') ? 'bg-red-50 text-red-700' : 'bg-[#F9FAFB]'} rounded-l-[11px] border-r border-slate-100 min-w-[100px] max-w-[160px]`}>
+                                          <div className="relative flex items-center w-full">
+                                            {filter.field.includes('数量') && (
+                                              <div className="absolute -top-6 left-0 whitespace-nowrap bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black animate-pulse shadow-sm">
+                                                QTY_STRICT
+                                              </div>
+                                            )}
+                                            {filter.field.includes('数量') && <Scale className="w-3.5 h-3.5 mr-2 text-red-500" />}
+                                            <input
+                                              className="w-full bg-transparent text-[13px] font-black placeholder:text-slate-300 focus:outline-none"
+                                              value={filter.field}
+                                              onChange={(e) => handleUpdateFilter(step.id, filter.id, e.target.value, filter.operator, filter.value)}
+                                              placeholder="过滤字段"
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="relative px-3 h-full flex items-center">
+                                          <select
+                                            className="bg-transparent text-[13px] font-mono font-bold text-slate-500 appearance-none cursor-pointer focus:outline-none pr-4 hover:text-blue-600"
+                                            value={filter.operator}
+                                            onChange={(e) => handleUpdateFilter(step.id, filter.id, filter.field, e.target.value, filter.value)}
+                                          >
+                                            <option value="==">==</option>
+                                            <option value="!=">!=</option>
+                                            <option value=">=">&gt;=</option>
+                                            <option value="<=">&lt;=</option>
+                                            <option value="IN">IN</option>
+                                          </select>
+                                          <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+                                        </div>
+                                        <div
+                                          onClick={() => setEditingParamsStepId(step.id)}
+                                          className={`h-full px-4 flex items-center bg-white border-l border-slate-100 min-w-[120px] cursor-pointer group/val relative ${filter.field.includes('数量') ? 'bg-red-50/30' : 'hover:bg-blue-50/50'}`}
+                                        >
+                                          <div className="flex items-center gap-2 w-full">
+                                            <div className={`flex-1 text-[13px] font-black ${filter.field.includes('数量') ? 'text-red-600' : 'text-orange-600'}`}>
                                               {filter.value}
-                                           </div>
-                                           <div className="flex items-center gap-1 opacity-40 group-hover/val:opacity-100 transition-opacity">
+                                            </div>
+                                            <div className="flex items-center gap-1 opacity-40 group-hover/val:opacity-100 transition-opacity">
                                               <LinkIcon className="w-3 h-3 text-slate-400" />
                                               <Settings className="w-3 h-3 text-slate-400" />
-                                           </div>
-                                         </div>
-                                         
-                                         {/* Tooltip on hover */}
-                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[9px] rounded whitespace-nowrap opacity-0 group-hover/val:opacity-100 pointer-events-none transition-opacity z-50">
-                                            此值引用自“节点参数”，点击前往修改
-                                         </div>
+                                            </div>
+                                          </div>
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[9px] rounded whitespace-nowrap opacity-0 group-hover/val:opacity-100 pointer-events-none transition-opacity z-50">
+                                            此值引用自“参数配置中心”，点击前往修改
+                                          </div>
+                                        </div>
+                                        <button
+                                          onClick={() => handleRemoveFilter(step.id, filter.id)}
+                                          className="w-8 h-8 mr-1 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all opacity-0 group-hover/f:opacity-100 ml-1"
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </button>
                                       </div>
-
-                                      {/* Removal Trigger */}
-                                      <button 
-                                        onClick={() => handleRemoveFilter(step.id, filter.id)}
-                                        className="w-8 h-8 mr-1 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all opacity-0 group-hover/f:opacity-100 ml-1"
-                                      >
-                                        <X className="w-4 h-4" />
-                                      </button>
-                                   </div>
-                                 ))}
-                                 {step.filters.length === 0 && (
-                                   <div className="w-full py-6 bg-slate-50/50 border border-dashed border-slate-200 rounded-[14px] text-center text-slate-400 text-[12px] italic flex items-center justify-center gap-2">
-                                     <div className="w-2 h-2 rounded-full bg-slate-200"></div>
-                                     未配置针对属性的过滤拦截条件
-                                   </div>
-                                 )}
-                              </div>
-                          </div>
-
-                          {/* Sorters (Factor Scoring) */}
-                          <div className="space-y-3">
-                             <div className="flex items-center justify-between mb-4">
-                                <div className="text-[11px] font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-theme-accent border-2 border-orange-200"></div>
-                                  智能评估与加权优选因子 (Scoring & Ranking Optimizers)
-                                  <Info className="w-4 h-4 text-orange-400 cursor-pointer hover:text-orange-600 transition-colors ml-1" onClick={() => setIsGuideModalOpen(true)} title="了解优化因子的作用" />
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="relative group/subj">
-                                    <select 
-                                      className="flex items-center gap-1.5 text-[10px] font-black px-3 py-1 rounded-full bg-blue-600 text-white border-none shadow-md appearance-none cursor-pointer pr-7 transition-all hover:bg-blue-700"
-                                      value={step.targetSubject || data.primarySubject}
-                                      onChange={(e) => handleUpdateStepSubject(step.id, e.target.value)}
-                                    >
-                                      <option value="CONTEXT">💼 业务场景 (Context)</option>
-                                      <option value="ORDER_LINE">📑 订单明细 (OrderLine)</option>
-                                      <option value="INVENTORY_LOT">📊 库存批次 (Lot)</option>
-                                      <option value="LOCATION">📦 货位空间 (Location)</option>
-                                      <option value="EQUIPMENT">⚡ 自动化设备 (Equipment)</option>
-                                      <option value="OPERATOR">👤 人工岗位 (Operator)</option>
-                                      <option value="CARRIER">🛒 载具容器 (Carrier)</option>
-                                    </select>
-                                    <ChevronDown className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-white/70 pointer-events-none" />
+                                    ))}
+                                    {stepFilters.length === 0 && (
+                                      <div className="w-full py-6 bg-slate-50/50 border border-dashed border-slate-200 rounded-[14px] text-center text-slate-400 text-[12px] italic flex items-center justify-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-slate-200"></div>
+                                        未配置针对属性的过滤拦截条件
+                                      </div>
+                                    )}
                                   </div>
-                                  <span className="text-[10px] text-theme-muted bg-[#F8F9FA] px-2.5 py-1 rounded-full border border-theme-border/50 uppercase font-mono font-bold font-black tracking-tighter">驱动维度: {step.targetSubject || data.primarySubject}</span>
-                                  {step.sorters.length > 0 && (
-                                    <div className="h-6 flex items-center px-3 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[10px] font-black tracking-tight">
-                                      综合权重: {step.sorters.reduce((sum, s) => sum + s.weight, 0)}%
+                                </div>
+                              );
+                            }
+
+                            if (section.key === 'sorters') {
+                              if (section.hideEmptyState && stepSorters.length === 0) {
+                                return (
+                                  <div key="sorters" className={`${priorityStyle.container} space-y-2.5`}>
+                                    <div className="min-w-0">
+                                      <div className={`text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${priorityStyle.title}`}>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-theme-accent border-2 border-orange-200"></div>
+                                        智能评估与加权优选因子 (Scoring & Ranking Optimizers)
+                                        <Info className="w-4 h-4 text-orange-400 cursor-pointer hover:text-orange-600 transition-colors ml-1" onClick={() => setIsGuideModalOpen(true)} title="了解优化因子的作用" />
+                                      </div>
+                                      <p className={`text-[11px] mt-1 ${priorityStyle.hint}`}>{section.hint}</p>
                                     </div>
-                                  )}
-                                </div>
-                             </div>
-                             <div 
-                               className={`rounded-2xl p-4 transition-all min-h-[80px] flex flex-wrap gap-2 items-center ${draggedFactor ? 'bg-blue-50/50 border-2 border-dashed border-blue-400 ring-8 ring-blue-500/5 animate-pulse' : 'bg-[#F9FAFB] border border-theme-border/30'}`}
-                               onDragOver={(e) => { e.preventDefault(); }}
-                               onDrop={(e) => {
-                                 e.preventDefault();
-                                 if (draggedFactor) handleDropFactor(step.id, draggedFactor);
-                               }}
-                             >
-                               {step.sorters.length === 0 && (
-                                 <div className="w-full text-center py-4 text-[10px] text-slate-400 font-medium italic flex flex-col items-center gap-2">
-                                    <Plus className="w-6 h-6 opacity-20" />
-                                    将建议因子拖入此区域开启加权计算
-                                 </div>
-                               )}
-                               <div className="flex flex-wrap gap-3">
-                                  {step.sorters.map(sorter => {
-                                    const factor = mockFactors.find(f => f.id === sorter.factorId);
-                                    return (
-                                      <div key={sorter.factorId} className="bg-white border border-theme-border pl-3 pr-1 py-1 gap-3 rounded-full flex items-center shadow-sm hover:shadow-md hover:border-theme-primary transition-all group/chip">
-                                         <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[12px] group-hover/chip:bg-blue-50 transition-colors">
-                                           {factor?.targetObject === 'LOCATION' ? '📦' : factor?.targetObject === 'INVENTORY_LOT' ? '📊' : factor?.targetObject === 'CONTEXT' ? '⚖️' : factor?.targetObject === 'EQUIPMENT' ? '⚡' : factor?.targetObject === 'ORDER_LINE' ? '📋' : '⚙️'}
-                                         </div>
-                                         <span className="text-[11px] font-bold text-slate-700 tracking-tight">{sorter.factorName}</span>
-                                         <div className="flex items-center gap-1.5 bg-[#F2F2F7] rounded-full px-2 py-0.5 ml-1">
-                                            <input 
-                                              type="number" 
-                                              className="w-8 bg-transparent text-[11px] font-black text-theme-primary focus:outline-none text-center"
-                                              value={sorter.weight}
-                                              onChange={(e) => handleWeightChange(step.id, sorter.factorId, Number(e.target.value))}
-                                            />
-                                            <span className="text-[10px] font-bold text-theme-muted">%</span>
-                                         </div>
-                                         <button 
-                                           className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
-                                           onClick={(e) => {
-                                             e.stopPropagation();
-                                             handleRemoveFactor(step.id, sorter.factorId);
-                                           }}
-                                         >
-                                           <X className="w-3.5 h-3.5" />
-                                         </button>
-                                      </div>
-                                    )
-                                  })}
-                               </div>
-                             </div>
-                          </div>
-
-                          {/* Business Control Config Panel */}
-                          {editingParamsStepId === step.id && (
-                            <div className={`mt-4 border rounded-[16px] p-5 shadow-inner animate-in slide-in-from-top-4 fade-in ${step.config && Object.keys(step.config).some(k => k.includes('Qty')) ? 'bg-red-50/50 border-red-200' : 'bg-[#F4F4F5] border-theme-border'}`}>
-                               <div className="text-[11px] font-bold text-theme-ink uppercase tracking-widest flex items-center justify-between mb-4">
-                                  <div className="flex items-center gap-2">
-                                    <Settings className={`w-3.5 h-3.5 ${step.config && Object.keys(step.config).some(k => k.includes('Qty')) ? 'text-red-500' : 'text-blue-500'}`} />
-                                    动作级业务管控参数 (Node Logic Configurations)
-                                    <Badge variant="neutral" className="ml-2 bg-white text-[9px]">ACTIVE CONFIG</Badge>
+                                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-4 py-5 text-[12px] text-slate-400 italic">
+                                      当前步骤不强调评分因子；如确有需要，仍可拖入因子后参与排序。
+                                    </div>
                                   </div>
-                                  <button onClick={() => setEditingParamsStepId(null)} className="text-theme-muted hover:text-theme-ink"><X className="w-4 h-4" /></button>
-                               </div>
-                               <div className="grid grid-cols-1 gap-6">
-                                  {step.config && Object.keys(step.config).length > 0 ? (() => {
-                                     const configEntries = Object.entries(step.config);
-                                     const groups = {
-                                        CONSTRAINT: configEntries.filter(([k]) => /limit|required|strict|max|min|allow|compliance|lock|match/i.test(k)),
-                                        ADJUSTMENT: configEntries.filter(([k]) => /weight|factor|bias|preference|penalty|coeff|rate|ratio|deviation/i.test(k)),
-                                        BEHAVIORAL: configEntries.filter(([k]) => !/limit|required|strict|max|min|allow|compliance|lock|match|weight|factor|bias|preference|penalty|coeff|rate|ratio|deviation/i.test(k))
-                                     };
+                                );
+                              }
 
-                                     return (
-                                        <>
-                                           {Object.entries(groups).map(([groupName, entries]) => {
-                                              if (entries.length === 0) return null;
-                                              const label = groupName === 'CONSTRAINT' ? '约束类参数 (决定能否执行)' :
-                                                            groupName === 'ADJUSTMENT' ? '调节类参数 (决定优选权重)' : '行为类参数 (决定系统表现)';
-                                              const color = groupName === 'CONSTRAINT' ? 'text-red-600 bg-red-50 border-red-100' :
-                                                            groupName === 'ADJUSTMENT' ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-purple-600 bg-purple-50 border-purple-100';
-                                              
-                                              return (
-                                                 <div key={groupName} className="space-y-3">
-                                                    <div className={`px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${color}`}>
-                                                       <div className={`w-1.5 h-1.5 rounded-full ${groupName === 'CONSTRAINT' ? 'bg-red-500' : groupName === 'ADJUSTMENT' ? 'bg-blue-500' : 'bg-purple-500'}`}></div>
-                                                       {label}
-                                                    </div>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                       {entries.map(([key, val]) => (
-                                                          <div key={key} className="bg-white rounded-[12px] p-3 border border-theme-border flex flex-col gap-1.5 hover:border-theme-primary/30 transition-all shadow-sm">
-                                                             <label className="text-[10px] text-theme-muted font-bold font-mono pl-1">{key}</label>
-                                                             <input 
-                                                               className="text-[13px] font-black text-theme-ink w-full border-b border-theme-border/50 pb-1 pt-1 focus:outline-none focus:border-theme-primary transition-all bg-transparent focus:bg-blue-50/20"
-                                                               value={val as string}
-                                                               onChange={(e) => handleUpdateStepConfig(step.id, key, e.target.value)}
-                                                             />
-                                                          </div>
-                                                       ))}
-                                                    </div>
-                                                 </div>
-                                              );
-                                           })}
-                                        </>
-                                     );
-                                  })() : (
-                                    <div className="text-center py-6 bg-white/50 border border-theme-border border-dashed rounded-[10px] text-[12px] text-theme-muted italic opacity-60">此执行动作目前暂未预设特殊的业务挂载参数，全部执行默认逻辑。</div>
-                                  )}
-                               </div>
-                            </div>
-                          )}
+                              return (
+                                <div key="sorters" className={`${priorityStyle.container} space-y-2.5`}>
+                                  <div className="flex items-center justify-between mb-4 gap-4">
+                                    <div className="min-w-0">
+                                      <div className={`text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${priorityStyle.title}`}>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-theme-accent border-2 border-orange-200"></div>
+                                        智能评估与加权优选因子 (Scoring & Ranking Optimizers)
+                                        <Info className="w-4 h-4 text-orange-400 cursor-pointer hover:text-orange-600 transition-colors ml-1" onClick={() => setIsGuideModalOpen(true)} title="了解优化因子的作用" />
+                                      </div>
+                                      <p className={`text-[11px] mt-1 ${priorityStyle.hint}`}>{section.hint}</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 flex-wrap justify-end">
+                                      <div className="relative group/subj">
+                                        <select
+                                          className="flex items-center gap-1.5 text-[10px] font-black px-3 py-1 rounded-full bg-blue-600 text-white border-none shadow-md appearance-none cursor-pointer pr-7 transition-all hover:bg-blue-700"
+                                          value={stepInputSubject}
+                                          onChange={(e) => handleUpdateStepSemantics(step.id, { inputSubject: e.target.value as FactorTarget })}
+                                        >
+                                          <option value="CONTEXT">💼 业务场景 (Context)</option>
+                                          <option value="ORDER_LINE">📑 订单明细 (OrderLine)</option>
+                                          <option value="INVENTORY_LOT">📊 库存批次 (Lot)</option>
+                                          <option value="LOCATION">📦 货位空间 (Location)</option>
+                                          <option value="EQUIPMENT">⚡ 自动化设备 (Equipment)</option>
+                                          <option value="OPERATOR">👤 人工岗位 (Operator)</option>
+                                          <option value="CARRIER">🛒 载具容器 (Carrier)</option>
+                                        </select>
+                                        <ChevronDown className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-white/70 pointer-events-none" />
+                                      </div>
+                                      <span className="text-[10px] text-theme-muted bg-[#F8F9FA] px-2.5 py-1 rounded-full border border-theme-border/50 uppercase font-mono font-bold font-black tracking-tighter">评分输入主体: {stepInputSubject}</span>
+                                      {stepSorters.length > 0 && (
+                                        <div className="h-6 flex items-center px-3 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[10px] font-black tracking-tight">
+                                          综合权重: {stepSorters.reduce((sum: number, s: RuleStep['sorters'][number]) => sum + s.weight, 0)}%
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div
+                                    className={`rounded-2xl p-4 transition-all min-h-[80px] flex flex-wrap gap-2 items-center ${draggedFactor ? 'bg-blue-50/50 border-2 border-dashed border-blue-400 ring-8 ring-blue-500/5 animate-pulse' : 'bg-[#F9FAFB] border border-theme-border/30'}`}
+                                    onDragOver={(e) => { e.preventDefault(); }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      if (draggedFactor) handleDropFactor(step.id, draggedFactor);
+                                    }}
+                                  >
+                                    {stepSorters.length === 0 && (
+                                      <div className="w-full text-center py-4 text-[10px] text-slate-400 font-medium italic flex flex-col items-center gap-2">
+                                        <Plus className="w-6 h-6 opacity-20" />
+                                        将建议因子拖入此区域开启加权计算
+                                      </div>
+                                    )}
+                                    <div className="flex flex-wrap gap-3">
+                                      {stepSorters.map((sorter: RuleStep['sorters'][number]) => {
+                                        const factor = mockFactors.find(f => f.id === sorter.factorId);
+                                        return (
+                                          <div key={sorter.factorId} className="bg-white border border-theme-border pl-3 pr-1 py-1 gap-3 rounded-full flex items-center shadow-sm hover:shadow-md hover:border-theme-primary transition-all group/chip">
+                                            <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[12px] group-hover/chip:bg-blue-50 transition-colors">
+                                              {factor?.targetObject === 'LOCATION' ? '📦' : factor?.targetObject === 'INVENTORY_LOT' ? '📊' : factor?.targetObject === 'CONTEXT' ? '⚖️' : factor?.targetObject === 'EQUIPMENT' ? '⚡' : factor?.targetObject === 'ORDER_LINE' ? '📋' : '⚙️'}
+                                            </div>
+                                            <span className="text-[11px] font-bold text-slate-700 tracking-tight">{sorter.factorName}</span>
+                                            <div className="flex items-center gap-1.5 bg-[#F2F2F7] rounded-full px-2 py-0.5 ml-1">
+                                              <input
+                                                type="number"
+                                                className="w-8 bg-transparent text-[11px] font-black text-theme-primary focus:outline-none text-center"
+                                                value={sorter.weight}
+                                                onChange={(e) => handleWeightChange(step.id, sorter.factorId, Number(e.target.value))}
+                                              />
+                                              <span className="text-[10px] font-bold text-theme-muted">%</span>
+                                            </div>
+                                            <button
+                                              className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRemoveFactor(step.id, sorter.factorId);
+                                              }}
+                                            >
+                                              <X className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            if (section.key === 'config') {
+                              return null;
+                            }
+
+                            return null;
+                          })}
                         </div>
                       </div>
                     </div>
@@ -2343,21 +2745,17 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                           <div className="flex flex-col items-center py-5 relative group/connector no-select">
                              <div className="w-[1.5px] h-12 bg-slate-200 group-hover/connector:bg-blue-300 transition-colors"></div>
                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
-                                <div 
-                                  onClick={(e) => {
-                                     e.stopPropagation();
-                                     handleUpdateStep(step.id, { flowControl: step.flowControl === 'CONTINUE' ? 'TERMINATE' : 'CONTINUE' });
-                                  }}
-                                  className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-md text-[11px] font-black transition-all bg-white cursor-pointer hover:scale-105 active:scale-95 whitespace-nowrap ${
-                                    step.flowControl === 'CONTINUE' 
-                                      ? 'text-emerald-700 border-emerald-100 hover:shadow-emerald-100 hover:border-emerald-300' 
-                                      : 'text-orange-700 border-orange-100 hover:shadow-orange-100 hover:border-orange-300'
+                                <div
+                                  className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-md text-[11px] font-black transition-all bg-white whitespace-nowrap ${
+                                    step.flowControl === 'CONTINUE'
+                                      ? 'text-emerald-700 border-emerald-100 group-hover/connector:shadow-emerald-100 group-hover/connector:border-emerald-300'
+                                      : 'text-orange-700 border-orange-100 group-hover/connector:shadow-orange-100 group-hover/connector:border-orange-300'
                                   }`}
                                 >
                                    {step.flowControl === 'CONTINUE' ? (
-                                      <><LinkIcon className="w-3.5 h-3.5" /> 业务综合评分 (Join)</>
+                                      <><LinkIcon className="w-3.5 h-3.5" /> 结果继续流转到下一步</>
                                    ) : (
-                                      <><ArrowDownRight className="w-3.5 h-3.5" /> 满足即止 / 寻址失败降级 (Fallback)</>
+                                      <><ArrowDownRight className="w-3.5 h-3.5" /> 当前结果在此终止</>
                                    )}
                                 </div>
                              </div>
@@ -2365,9 +2763,10 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                           </div>
                         )}
                     </div>
-                    ))}
+                    );
+                  })}
 
-                  <button 
+                  <button
                     onClick={handleAddStep}
                     className="w-full py-6 bg-white border-2 border-dashed border-theme-border rounded-xl text-theme-muted hover:text-theme-primary hover:border-theme-primary hover:bg-theme-primary/5 transition-all flex flex-col items-center justify-center gap-2 group shadow-sm z-10"
                   >
@@ -2375,8 +2774,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       <Plus className="w-6 h-6" />
                     </div>
                     <div className="flex flex-col items-center">
-                      <span className="text-[14px] font-bold text-theme-ink">追加业务执行动作节点 (Append Execution Node)</span>
-                      <span className="text-[11px] text-theme-muted opacity-60">定义新的过滤筛选与多维评分排序逻辑计算环</span>
+                      <span className="text-[14px] font-bold text-theme-ink">追加语义步骤节点 (Append Semantic Step)</span>
+                      <span className="text-[11px] text-theme-muted opacity-60">定义新的过滤、转换、评分选优或分支判断步骤</span>
                     </div>
                   </button>
                 </div>
@@ -2414,7 +2813,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     <p className="text-[11px] text-theme-muted mt-1">{rule.description || '无详细描述'}</p>
                     <div className="flex gap-4 mt-2">
                        <div className="text-[10px] text-theme-muted flex items-center gap-1">
-                          <GitBranch className="w-3 h-3" /> {rule.steps?.length || 0} 执行动作节点
+                          <GitBranch className="w-3 h-3" /> {rule.steps?.length || 0} 语义步骤
                        </div>
                        <div className="text-[10px] text-theme-muted flex items-center gap-1">
                           <Search className="w-3 h-3" /> {rule.matchingCriteria?.length || 0} 前置触发器
@@ -2445,8 +2844,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
         const step = activeRule?.steps.find(s => s.id === editingParamsStepId);
         if (!step) return null;
         
-        const subject = step.targetSubject || data.primarySubject;
-        const availableParams = (() => {
+        const subject = getEffectiveInputSubject(step, data.primarySubject);
+        const availableParams: AvailableParam[] = (() => {
           switch (subject) {
             case 'LOCATION':
               return [
@@ -2519,11 +2918,11 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
           }
         })();
 
-        const groupedParams = availableParams.reduce((acc, param) => {
+        const groupedParams = availableParams.reduce<Record<string, AvailableParam[]>>((acc, param) => {
           if (!acc[param.group]) acc[param.group] = [];
           acc[param.group].push(param);
           return acc;
-        }, {} as Record<string, typeof availableParams>);
+        }, {});
 
         const groupLabels = {
           'CONSTRAINT': { label: '约束类参数 (筛选时用)', color: 'text-red-600', bg: 'bg-red-50' },
@@ -2541,14 +2940,14 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     <Activity className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-[16px] font-black text-slate-900 leading-tight">节点执行精细参数 (Params)</h3>
-                    <div className="flex items-center gap-1.5 mt-1">
+                    <h3 className="text-[16px] font-black text-slate-900 leading-tight">参数配置中心 (Step Config Center)</h3>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Target:</span>
                        <Badge variant="neutral" className="bg-blue-100 text-blue-700 border-none font-bold text-[9px] h-4">
                           {subject}
                        </Badge>
                        <span className="text-[9px] text-slate-300 ml-1">|</span>
-                       <span className="text-[10px] text-slate-400 italic">驱动该环节的私有属性配置</span>
+                       <span className="text-[10px] text-slate-400 italic">同一套 step.config，统一承载节点参数与执行参数</span>
                     </div>
                   </div>
                 </div>
@@ -2626,7 +3025,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                      <span className="text-[12px] font-bold">配置指引</span>
                    </div>
                    <p className="text-[11px] text-blue-600/80 leading-relaxed font-medium">
-                     这些参数将作为业务上下文注入到当前执行动作中。如果该动作涉及复杂的条件判断（如：冷链、溢收、黑名单），系统会根据这些阈值实时决策。
+                     这里是当前步骤唯一的深度参数编辑入口。它编辑的是同一套 step.config：从步骤视角看是节点参数，从动作视角看是执行参数，系统会在过滤、评分和动作执行阶段按需读取。
                    </p>
                 </div>
               </div>
@@ -2765,7 +3164,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                       </h4>
                       <ul className="text-[12px] space-y-2 mt-2 list-disc list-inside">
                         <li><b>满足即止 (Terminate)</b>: 找到最优库位立即锁定并返回。</li>
-                        <li><b>综合评分流转 (Continue/Join)</b>: 结果将传递给下个执行动作交叉计算。</li>
+                        <li><b>综合评分流转 (Continue/Join)</b>: 结果将传递给下个语义步骤继续计算。</li>
                       </ul>
 
                       <h4 className="flex items-center gap-2 text-slate-900 font-bold text-[14px] mt-8 bg-slate-100 p-2 rounded">
