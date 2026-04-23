@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Factor, RuleStepAction, RuleStepType } from '../types/wms';
+import { Factor, FactorType, RuleStepAction, RuleStepType } from '../types/wms';
 import { mockFactors } from '../data/mock';
 import { attributeMetas, getObjectMeta, subjectOptions } from '../data/metadata';
 import { Button, Card, Badge, Input, Select } from '../components/ui';
-import { Settings, Plus, Search, Layers, Box, Filter, BookOpen, Database } from 'lucide-react';
+import { Settings, Plus, Search, Layers, Box, Filter, BookOpen, Database, Globe, Sparkles, Zap, X } from 'lucide-react';
 
 interface FactorManagerProps {
   onOpenHelp: () => void;
@@ -14,8 +14,10 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'ALL' | 'LOCATION' | 'INVENTORY' | 'RESOURCE' | 'TASK' | 'CONTAINER' | 'LOAD'>('ALL');
   const [editingFactor, setEditingFactor] = useState<Factor | null>(null);
+  const [editModalTab, setEditModalTab] = useState<'basic' | 'type-config'>('basic');
   const [showWeightGuide, setShowWeightGuide] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [factorTypeFilter, setFactorTypeFilter] = useState<FactorType | 'ALL'>('ALL');
   const [newFactor, setNewFactor] = useState<Partial<Factor>>({
     targetObject: 'LOCATION',
     category: 'PHYSICAL',
@@ -38,10 +40,12 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
   };
 
   const filteredFactors = factors.filter(f => {
-    const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (f.description && f.description.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesTab = activeTab === 'ALL' || f.targetObject === activeTab;
-    return matchesSearch && matchesTab;
+    const effectiveType: FactorType = f.factorType ?? 'STATIC';
+    const matchesType = factorTypeFilter === 'ALL' || effectiveType === factorTypeFilter;
+    return matchesSearch && matchesTab && matchesType;
   });
 
   const handleSaveFactor = () => {
@@ -125,35 +129,59 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
         </div>
 
         {/* Filters */}
-        <div className="mb-6 flex flex-col gap-3 overflow-hidden rounded-[10px] border border-theme-border bg-white p-2 shadow-sm md:flex-row md:items-center md:justify-between">
-          <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth md:min-w-0">
-            {['ALL', 'LOCATION', 'INVENTORY', 'RESOURCE', 'TASK', 'CONTAINER', 'LOAD'].map(tab => (
+        <div className="mb-6 flex flex-col gap-2 overflow-hidden rounded-[10px] border border-theme-border bg-white p-2 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth md:min-w-0">
+              {['ALL', 'LOCATION', 'INVENTORY', 'RESOURCE', 'TASK', 'CONTAINER', 'LOAD'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab as any)}
+                  className={`px-3 py-1.5 rounded-[6px] text-[12px] whitespace-nowrap font-medium transition-colors ${
+                    activeTab === tab
+                      ? 'bg-theme-bg text-theme-ink shadow-sm border border-theme-border'
+                      : 'text-theme-muted hover:bg-[#F8F9FA]'
+                  }`}
+                >
+                  {tab === 'ALL' ? '全部维度' :
+                   tab === 'LOCATION' ? '库位/物理' :
+                   tab === 'INVENTORY' ? '库存/批次' :
+                   tab === 'RESOURCE' ? '设备' :
+                   tab === 'TASK' ? '作业' :
+                   tab === 'CONTAINER' ? '载具' : '负载'}
+                </button>
+              ))}
+            </div>
+            <div className="relative w-full shrink-0 md:ml-4 md:w-56 lg:w-64 md:pr-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-theme-muted" />
+              <Input
+                placeholder="搜索因子 ID、名称"
+                className="pl-9 h-8 border-theme-border bg-theme-bg text-[11px]"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          {/* Factor type filter row */}
+          <div className="flex items-center gap-2 border-t border-theme-border/50 pt-2">
+            <span className="text-[10px] font-bold text-theme-muted uppercase tracking-wider shrink-0">因子类型:</span>
+            {(['ALL', 'STATIC', 'DYNAMIC', 'ML_SCORE'] as const).map(t => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`px-3 py-1.5 rounded-[6px] text-[12px] whitespace-nowrap font-medium transition-colors ${
-                  activeTab === tab 
-                    ? 'bg-theme-bg text-theme-ink shadow-sm border border-theme-border' 
-                    : 'text-theme-muted hover:bg-[#F8F9FA]'
+                key={t}
+                onClick={() => setFactorTypeFilter(t)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors ${
+                  factorTypeFilter === t
+                    ? t === 'DYNAMIC' ? 'bg-blue-600 text-white border-blue-600'
+                      : t === 'ML_SCORE' ? 'bg-violet-600 text-white border-violet-600'
+                      : 'bg-slate-700 text-white border-slate-700'
+                    : 'text-theme-muted border-theme-border hover:bg-theme-bg'
                 }`}
               >
-                {tab === 'ALL' ? '全部维度' : 
-                 tab === 'LOCATION' ? '库位/物理' : 
-                 tab === 'INVENTORY' ? '库存/批次' : 
-                 tab === 'RESOURCE' ? '设备' :
-                 tab === 'TASK' ? '作业' :
-                 tab === 'CONTAINER' ? '载具' : '负载'}
+                {t === 'DYNAMIC' && <Globe className="w-2.5 h-2.5" />}
+                {t === 'ML_SCORE' && <Sparkles className="w-2.5 h-2.5" />}
+                {t === 'STATIC' && <Zap className="w-2.5 h-2.5" />}
+                {t === 'ALL' ? '全部类型' : t === 'STATIC' ? '静态' : t === 'DYNAMIC' ? '动态' : 'ML评分'}
               </button>
             ))}
-          </div>
-          <div className="relative w-full shrink-0 md:ml-4 md:w-56 lg:w-64 md:pr-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-theme-muted" />
-            <Input 
-              placeholder="搜索因子 ID、名称" 
-              className="pl-9 h-8 border-theme-border bg-theme-bg text-[11px]"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
           </div>
         </div>
 
@@ -177,9 +205,21 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                     <div className="text-[10px] font-mono text-theme-muted opacity-60">ID: {factor.id}</div>
                   </div>
                 </div>
-                <Badge variant="neutral" className="text-[9px] py-0 px-1 bg-theme-bg uppercase text-theme-muted border-none opacity-60">
-                   {factor.category}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  {(factor.factorType === 'DYNAMIC' || factor.factorType === 'ML_SCORE') && (
+                    <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border font-bold ${
+                      factor.factorType === 'DYNAMIC'
+                        ? 'bg-blue-50 text-blue-600 border-blue-200'
+                        : 'bg-violet-50 text-violet-600 border-violet-200'
+                    }`}>
+                      {factor.factorType === 'DYNAMIC' ? <Globe className="w-2.5 h-2.5" /> : <Sparkles className="w-2.5 h-2.5" />}
+                      {factor.factorType === 'DYNAMIC' ? '动态' : 'ML'}
+                    </span>
+                  )}
+                  <Badge variant="neutral" className="text-[9px] py-0 px-1 bg-theme-bg uppercase text-theme-muted border-none opacity-60">
+                    {factor.category}
+                  </Badge>
+                </div>
               </div>
               
               <div className="flex-1 relative z-10 py-3">
@@ -190,6 +230,15 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                   <div className="bg-[#F2F2F7] rounded-[4px] p-2 border border-[#E5E5EA]">
                     <div className="text-[9px] uppercase font-bold text-theme-muted mb-1 opacity-60">指标逻辑 (Logic)</div>
                     <code className="text-[10px] font-mono text-indigo-600 break-all">{factor.logic.formula}</code>
+                  </div>
+                )}
+                {factor.externalSource && (
+                  <div className={`rounded-[4px] p-2 border mt-2 ${factor.factorType === 'ML_SCORE' ? 'bg-violet-50 border-violet-100' : 'bg-blue-50 border-blue-100'}`}>
+                    <div className={`text-[9px] uppercase font-bold mb-1 flex items-center gap-1 ${factor.factorType === 'ML_SCORE' ? 'text-violet-500' : 'text-blue-500'}`}>
+                      {factor.factorType === 'ML_SCORE' ? <Sparkles className="w-2.5 h-2.5" /> : <Globe className="w-2.5 h-2.5" />}
+                      外部数据源
+                    </div>
+                    <code className={`text-[10px] font-mono break-all ${factor.factorType === 'ML_SCORE' ? 'text-violet-600' : 'text-blue-600'}`}>{factor.externalSource.endpoint}</code>
                   </div>
                 )}
                 <div className="mt-3 space-y-2">
@@ -226,7 +275,7 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                   </div>
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => setEditingFactor(factor)}
+                      onClick={() => { setEditModalTab('basic'); setEditingFactor(factor); }}
                       className="p-1.5 border border-theme-border hover:bg-theme-bg rounded-[6px] transition-colors"
                     >
                       <Settings className="w-3.5 h-3.5 text-theme-muted" />
@@ -287,7 +336,7 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                </div>
                <div>
                   <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-1.5 scroll-m-20">算法分类</label>
-                  <select 
+                  <select
                     className="w-full h-9 rounded-[6px] border border-theme-border text-[12px] px-2 bg-white outline-none"
                     value={newFactor.category}
                     onChange={(e) => setNewFactor({ ...newFactor, category: e.target.value as any })}
@@ -298,6 +347,28 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                     <option value="EQUIPMENT">设备约束 (Equip)</option>
                     <option value="COMPLIANCE">合规约束 (Compliance)</option>
                   </select>
+               </div>
+               <div>
+                  <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-2">因子类型</label>
+                  <div className="flex gap-2">
+                    {(['STATIC', 'DYNAMIC', 'ML_SCORE'] as FactorType[]).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setNewFactor({ ...newFactor, factorType: t })}
+                        className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 text-[10px] font-bold transition-colors ${
+                          (newFactor.factorType ?? 'STATIC') === t
+                            ? t === 'STATIC' ? 'border-slate-500 bg-slate-50 text-slate-700'
+                              : t === 'DYNAMIC' ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              : 'border-violet-500 bg-violet-50 text-violet-700'
+                            : 'border-theme-border text-theme-muted hover:bg-theme-bg'
+                        }`}
+                      >
+                        {t === 'STATIC' ? <Zap className="w-3.5 h-3.5" /> : t === 'DYNAMIC' ? <Globe className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        {t === 'STATIC' ? '静态' : t === 'DYNAMIC' ? '动态' : 'ML评分'}
+                      </button>
+                    ))}
+                  </div>
                </div>
                <div className="flex justify-end gap-2 pt-2 border-t border-theme-border mt-4 overflow-hidden">
                   <Button variant="ghost" onClick={() => setIsCreating(false)}>取消</Button>
@@ -311,22 +382,46 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
       {/* Factor Edit Modal */}
       {editingFactor && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[12px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-theme-border flex justify-between items-center">
-              <h3 className="font-semibold text-theme-ink">因子计算参数配置</h3>
-              <button onClick={() => setEditingFactor(null)} className="text-theme-muted hover:text-theme-ink transition-colors">✕</button>
+          <div className="bg-white rounded-[12px] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-theme-border flex justify-between items-center bg-[#F8F9FA]">
+              <div>
+                <h3 className="font-semibold text-theme-ink">因子计算参数配置</h3>
+                <p className="text-[10px] text-theme-muted mt-0.5 font-mono">{editingFactor.id}</p>
+              </div>
+              <button onClick={() => setEditingFactor(null)} className="text-theme-muted hover:text-theme-ink transition-colors p-1">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="px-6 py-4 space-y-4">
+            {/* Tab switcher */}
+            <div className="flex border-b border-theme-border px-6">
+              <button
+                onClick={() => setEditModalTab('basic')}
+                className={`px-4 py-2.5 text-[12px] font-semibold border-b-2 transition-colors -mb-px ${editModalTab === 'basic' ? 'border-blue-500 text-blue-600' : 'border-transparent text-theme-muted hover:text-theme-ink'}`}
+              >
+                基础配置
+              </button>
+              <button
+                onClick={() => setEditModalTab('type-config')}
+                className={`px-4 py-2.5 text-[12px] font-semibold border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${editModalTab === 'type-config' ? 'border-violet-500 text-violet-600' : 'border-transparent text-theme-muted hover:text-theme-ink'}`}
+              >
+                因子类型
+                {(editingFactor.factorType === 'DYNAMIC' || editingFactor.factorType === 'ML_SCORE') && (
+                  <span className={`w-1.5 h-1.5 rounded-full ${editingFactor.factorType === 'DYNAMIC' ? 'bg-blue-500' : 'bg-violet-500'}`}></span>
+                )}
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              {editModalTab === 'basic' && (<>
                <div>
                  <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-1.5">因子名称</label>
-                 <Input 
+                 <Input
                    value={editingFactor.name}
                    onChange={(e) => setEditingFactor({ ...editingFactor, name: e.target.value })}
                  />
                </div>
                <div>
                  <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-1.5">计算逻辑描述</label>
-                 <textarea 
+                 <textarea
                    className="w-full min-h-[80px] p-3 rounded-[6px] border border-theme-border text-[13px] outline-none"
                    value={editingFactor.description || ''}
                    onChange={(e) => setEditingFactor({ ...editingFactor, description: e.target.value })}
@@ -334,14 +429,14 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                </div>
                <div>
                  <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-1.5">指标计算逻辑 (Script / Formula)</label>
-                 <div className="bg-[#1C1C1E] rounded-[6px] p-3 border border-black overflow-hidden group">
-                   <textarea 
+                 <div className="bg-[#1C1C1E] rounded-[6px] p-3 border border-black overflow-hidden">
+                   <textarea
                      className="w-full min-h-[100px] bg-transparent text-emerald-400 font-mono text-[12px] outline-none resize-none no-scrollbar"
                      spellCheck="false"
                      value={editingFactor.logic?.formula || ''}
-                     onChange={(e) => setEditingFactor({ 
-                       ...editingFactor, 
-                       logic: { ...editingFactor.logic, formula: e.target.value } 
+                     onChange={(e) => setEditingFactor({
+                       ...editingFactor,
+                       logic: { ...editingFactor.logic, formula: e.target.value }
                      })}
                    />
                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/10">
@@ -360,7 +455,128 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                    <Input type="number" defaultValue="10" />
                  </div>
                </div>
-               <div className="flex justify-end gap-2 pt-2">
+              </>)}
+
+              {editModalTab === 'type-config' && (<>
+               <div>
+                 <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-2">因子类型</label>
+                 <div className="flex gap-2">
+                   {(['STATIC', 'DYNAMIC', 'ML_SCORE'] as FactorType[]).map(t => (
+                     <button
+                       key={t}
+                       onClick={() => setEditingFactor({ ...editingFactor, factorType: t })}
+                       className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border-2 text-[11px] font-bold transition-colors ${
+                         (editingFactor.factorType ?? 'STATIC') === t
+                           ? t === 'STATIC' ? 'border-slate-500 bg-slate-50 text-slate-700'
+                             : t === 'DYNAMIC' ? 'border-blue-500 bg-blue-50 text-blue-700'
+                             : 'border-violet-500 bg-violet-50 text-violet-700'
+                           : 'border-theme-border text-theme-muted hover:bg-theme-bg'
+                       }`}
+                     >
+                       {t === 'STATIC' ? <Zap className="w-4 h-4" /> : t === 'DYNAMIC' ? <Globe className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                       {t === 'STATIC' ? '静态' : t === 'DYNAMIC' ? '动态' : 'ML评分'}
+                     </button>
+                   ))}
+                 </div>
+                 <p className="text-[10px] text-theme-muted mt-2">
+                   {(editingFactor.factorType ?? 'STATIC') === 'STATIC' && '直接由配置公式计算，无需外部调用。'}
+                   {editingFactor.factorType === 'DYNAMIC' && '运行时调用外部服务获取实时数据，支持缓存和降级。'}
+                   {editingFactor.factorType === 'ML_SCORE' && '由机器学习模型打分，支持反馈闭环自动调整权重。'}
+                 </p>
+               </div>
+
+               {(editingFactor.factorType === 'DYNAMIC' || editingFactor.factorType === 'ML_SCORE') && (
+                 <div className="space-y-3 p-4 rounded-xl border border-theme-border bg-slate-50/50">
+                   <h5 className="text-[11px] font-bold text-theme-muted uppercase tracking-wider">外部数据源配置</h5>
+                   <div>
+                     <label className="text-[11px] text-theme-muted font-semibold block mb-1">Endpoint URL</label>
+                     <Input
+                       placeholder="e.g. /api/rcs/navigation-distance"
+                       value={editingFactor.externalSource?.endpoint || ''}
+                       onChange={(e) => setEditingFactor({ ...editingFactor, externalSource: { ...editingFactor.externalSource, endpoint: e.target.value, method: editingFactor.externalSource?.method ?? 'GET', inputFields: editingFactor.externalSource?.inputFields ?? [], outputField: editingFactor.externalSource?.outputField ?? 'score' } })}
+                     />
+                   </div>
+                   <div className="grid grid-cols-2 gap-3">
+                     <div>
+                       <label className="text-[11px] text-theme-muted font-semibold block mb-1">HTTP Method</label>
+                       <Select
+                         value={editingFactor.externalSource?.method ?? 'GET'}
+                         onChange={(e) => setEditingFactor({ ...editingFactor, externalSource: { ...editingFactor.externalSource!, method: e.target.value as 'GET' | 'POST' } })}
+                       >
+                         <option value="GET">GET</option>
+                         <option value="POST">POST</option>
+                       </Select>
+                     </div>
+                     <div>
+                       <label className="text-[11px] text-theme-muted font-semibold block mb-1">输出字段</label>
+                       <Input
+                         placeholder="e.g. score"
+                         value={editingFactor.externalSource?.outputField || ''}
+                         onChange={(e) => setEditingFactor({ ...editingFactor, externalSource: { ...editingFactor.externalSource!, outputField: e.target.value } })}
+                       />
+                     </div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-3">
+                     <div>
+                       <label className="text-[11px] text-theme-muted font-semibold block mb-1">缓存时长 (ms)</label>
+                       <Input
+                         type="number"
+                         placeholder="e.g. 30000"
+                         value={editingFactor.externalSource?.cacheTtlMs ?? ''}
+                         onChange={(e) => setEditingFactor({ ...editingFactor, externalSource: { ...editingFactor.externalSource!, cacheTtlMs: Number(e.target.value) } })}
+                       />
+                     </div>
+                     <div>
+                       <label className="text-[11px] text-theme-muted font-semibold block mb-1">降级值</label>
+                       <Input
+                         type="number"
+                         placeholder="e.g. 50"
+                         value={editingFactor.externalSource?.fallbackValue ?? ''}
+                         onChange={(e) => setEditingFactor({ ...editingFactor, externalSource: { ...editingFactor.externalSource!, fallbackValue: Number(e.target.value) } })}
+                       />
+                     </div>
+                   </div>
+                 </div>
+               )}
+
+               {editingFactor.factorType === 'ML_SCORE' && (
+                 <div className="space-y-3 p-4 rounded-xl border border-violet-100 bg-violet-50/50">
+                   <div className="flex items-center justify-between">
+                     <h5 className="text-[11px] font-bold text-violet-700 uppercase tracking-wider">反馈闭环 (Feedback Loop)</h5>
+                     <button
+                       onClick={() => setEditingFactor({ ...editingFactor, feedbackLoop: { ...editingFactor.feedbackLoop, enabled: !(editingFactor.feedbackLoop?.enabled), kpiMetric: editingFactor.feedbackLoop?.kpiMetric ?? '', adjustmentInterval: editingFactor.feedbackLoop?.adjustmentInterval ?? 'DAILY' } })}
+                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${editingFactor.feedbackLoop?.enabled ? 'bg-violet-500' : 'bg-slate-200'}`}
+                     >
+                       <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${editingFactor.feedbackLoop?.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                     </button>
+                   </div>
+                   {editingFactor.feedbackLoop?.enabled && (
+                     <div className="space-y-3">
+                       <div>
+                         <label className="text-[11px] text-theme-muted font-semibold block mb-1">KPI 指标名</label>
+                         <Input
+                           placeholder="e.g. pick_efficiency_rate"
+                           value={editingFactor.feedbackLoop.kpiMetric}
+                           onChange={(e) => setEditingFactor({ ...editingFactor, feedbackLoop: { ...editingFactor.feedbackLoop!, kpiMetric: e.target.value } })}
+                         />
+                       </div>
+                       <div>
+                         <label className="text-[11px] text-theme-muted font-semibold block mb-1">调整频率</label>
+                         <Select
+                           value={editingFactor.feedbackLoop.adjustmentInterval}
+                           onChange={(e) => setEditingFactor({ ...editingFactor, feedbackLoop: { ...editingFactor.feedbackLoop!, adjustmentInterval: e.target.value as 'DAILY' | 'WEEKLY' } })}
+                         >
+                           <option value="DAILY">每日</option>
+                           <option value="WEEKLY">每周</option>
+                         </Select>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               )}
+              </>)}
+
+               <div className="flex justify-end gap-2 pt-2 border-t border-theme-border">
                   <Button variant="ghost" onClick={() => setEditingFactor(null)}>取消</Button>
                   <Button variant="primary" onClick={handleSaveFactor}>应用配置</Button>
                </div>

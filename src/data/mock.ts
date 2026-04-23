@@ -32,10 +32,30 @@ const rawStrategies = [
     category: 'WAVE',
     primarySubject: 'ORDER_LINE',
     owner: '算法优化赋能组 (AI-Ops)',
-    scenario: '【业务场景】适用于高密度电商及零售 B2B 配送，旨在解决传统固定时间点波次导致的作业波峰波谷问题。\n\n【配置逻辑：动态聚类】\n- 智能监控订单池，当特定承运商或特定送货网格的并发订单池中“SKU重合度(Affinity)”超过 75%，或者集货道(Staging)可用承载率告警时，自适应触发微波次(Micro-Wave)切割与释放任务，实现生产线平准化流转。',
+    scenario: '【业务场景】适用于高密度电商及零售 B2B 配送，旨在解决传统固定时间点波次导致的作业波峰波谷问题。\n\n【配置逻辑：动态聚类】\n- 智能监控订单池，当特定承运商或特定送货网格的并发订单池中”SKU重合度(Affinity)”超过 75%，或者集货道(Staging)可用承载率告警时，自适应触发微波次(Micro-Wave)切割与释放任务，实现生产线平准化流转。',
     version: 'v8.2.3',
     status: 'ACTIVE',
     priority: 95,
+    triggerConditions: [
+      {
+        id: 'tc-wave-order-pool',
+        name: '订单积压触发',
+        enabled: true,
+        eventType: 'ORDER_ARRIVED',
+        subject: 'ORDER_LINE',
+        conditions: [{ id: 'tc-c1', field: '待处理订单数', operator: '>', value: '50' }],
+        cooldownMs: 300000
+      },
+      {
+        id: 'tc-wave-wip',
+        name: '在途任务熔断触发',
+        enabled: true,
+        eventType: 'WIP_THRESHOLD',
+        subject: 'CONTEXT',
+        conditions: [{ id: 'tc-c2', field: '全局 WIP 拥堵水位', operator: '<', value: '70%' }],
+        cooldownMs: 120000
+      }
+    ],
     guardrails: [
       {
         id: 'GR-WAVE-OVERLOAD',
@@ -66,7 +86,8 @@ const rawStrategies = [
             sorters: [{ factorId: 'fact-sku-affinity', factorName: '波次内 SKU 聚合重合度', weight: 100, direction: 'DESC' }],
             failoverAction: 'NEXT_STEP',
             flowControl: 'CONTINUE',
-            config: { 'Min Cluster Match Rate': '65%', 'Algo Mode': 'K-Means Affinity' }
+            config: { 'Min Cluster Match Rate': '65%', 'Algo Mode': 'K-Means Affinity' },
+            executionConstraints: { maxCandidates: 2000, timeoutMs: 800, maxOutputCount: 50 }
           }
         ]
       }
@@ -78,10 +99,21 @@ const rawStrategies = [
     category: 'REPLENISHMENT',
     primarySubject: 'EQUIPMENT',
     owner: '设备资源管控平台 (RCS)',
-    scenario: '【业务场景】叉车/AGV 设备的高级资源调度。传统操作由于上架和拣选在时间上隔离，导致设备严重“空跑空回”。\n\n【配置逻辑：资源复用】\n- 分析设备当前持有的上架任务落点，在释放下行路段时，系统立即扫描落点周边是否有挂起的拉动补货（下架）任务。若有，在下发任务时指派设备“顺路带回”，理论可降低 35% 设备空驶死角。',
+    scenario: '【业务场景】叉车/AGV 设备的高级资源调度。传统操作由于上架和拣选在时间上隔离，导致设备严重”空跑空回”。\n\n【配置逻辑：资源复用】\n- 分析设备当前持有的上架任务落点，在释放下行路段时，系统立即扫描落点周边是否有挂起的拉动补货（下架）任务。若有，在下发任务时指派设备”顺路带回”，理论可降低 35% 设备空驶死角。',
     version: 'v4.0.0',
     status: 'ACTIVE',
     priority: 90,
+    triggerConditions: [
+      {
+        id: 'tc-interleave-inv',
+        name: '库存水位低触发',
+        enabled: true,
+        eventType: 'INVENTORY_CHANGE',
+        subject: 'INVENTORY_LOT',
+        conditions: [{ id: 'tc-inv-c1', field: '拣货区库存水位', operator: '<', value: '20%' }],
+        cooldownMs: 180000
+      }
+    ],
     rules: [
       {
         id: 'rule-task-deadhead',
@@ -101,7 +133,8 @@ const rawStrategies = [
             sorters: [{ factorId: 'fact-deadhead-dist', factorName: '设备次任务空跑距离', weight: 100, direction: 'ASC' }],
             failoverAction: 'PIPELINE_NEXT',
             flowControl: 'TERMINATE',
-            config: { 'Max Search Radius (m)': 5, 'Battery Limit Penalty': 2 }
+            config: { 'Max Search Radius (m)': 5, 'Battery Limit Penalty': 2 },
+            executionConstraints: { maxCandidates: 200, timeoutMs: 300 }
           }
         ]
       }
@@ -167,7 +200,17 @@ const rawStrategies = [
               { id: 'f-2', field: '库位温层代码', operator: 'MATCH', value: 'REQ_TEMP_ZONE', logicalOperator: 'AND' }
             ],
             sorters: [
-              { factorId: 'fact-shelf-life-ratio', factorName: '剩余保质期占比 (FEFO%)', weight: 80, direction: 'ASC' },
+              {
+                factorId: 'fact-shelf-life-ratio', factorName: '剩余保质期占比 (FEFO%)', weight: 80, direction: 'ASC',
+                weightOverrides: [
+                  {
+                    id: 'wo-peak-season',
+                    label: '节假日旺季',
+                    conditions: [{ id: 'c-peak', field: 'CONTEXT.isPeakSeason', operator: '==', value: 'true' }],
+                    weight: 95
+                  }
+                ]
+              },
               { factorId: 'fact-clear-bin', factorName: '储位清空倾向度', weight: 20, direction: 'DESC' }
             ],
             failoverAction: 'ERROR_SUSPEND',
@@ -1514,14 +1557,24 @@ const rawStrategies = [
   },
   {
     id: 'STG-RET-RCV-FRESH-BULK',
-    name: '“生鲜散货”称重与品质分级策略 (Fresh Bulk Catch-Weight)',
+    name: '”生鲜散货”称重与品质分级策略 (Fresh Bulk Catch-Weight)',
     category: 'RECEIVING',
     primarySubject: 'ORDER_LINE',
     owner: '大宗生鲜采购组',
-    scenario: '【业务场景】针对散装蔬菜、活鱼、等非标生鲜。重点解决“称重容差”与“品质实时打分”问题。\n\n【配置逻辑：动态适配】\n- 第一步：重量对齐。系统自动剔除载具重量，计算单品“称重溢出率”，超标则触发成本预警。\n- 第二步：等级路由。根据 QC 录入的品相打分（A/B/C），自动寻址至不同的存储或加工工艺区（如 A 级冷藏，C 级直供打折台）。',
-    version: 'v1.4.5',
-    status: 'ACTIVE',
+    scenario: '【业务场景】针对散装蔬菜、活鱼、等非标生鲜。重点解决”称重容差”与”品质实时打分”问题。\n\n【配置逻辑：动态适配】\n- 第一步：重量对齐。系统自动剔除载具重量，计算单品”称重溢出率”，超标则触发成本预警。\n- 第二步：等级路由。根据 QC 录入的品相打分（A/B/C），自动寻址至不同的存储或加工工艺区（如 A 级冷藏，C 级直供打折台）。',
+    version: 'v1.5.0-beta',
+    status: 'DRAFT',
     priority: 110,
+    trafficSplit: {
+      enabled: true,
+      baselineStrategyId: 'STG-RET-RCV-FRESH-STD',
+      experimentStrategyId: 'STG-RET-RCV-FRESH-BULK',
+      splitRatio: 10,
+      splitKey: 'ORDER_ID',
+      startTime: '2026-04-25T00:00:00Z',
+      endTime: '2026-05-10T00:00:00Z',
+      targetKpi: '称重误差率'
+    },
     rules: [
       {
         id: 'rule-fresh-bulk-weight',
@@ -1575,12 +1628,21 @@ export const mockFactors: Factor[] = [
     targetObject: 'EQUIPMENT',
     category: 'PHYSICAL',
     impactType: 'ADJUSTMENT',
-    description: '任务交叉(Interleaving)核心因子。计算上一个任务卸货点到下一个任务拾货点之间的导航距离，避免设备重载去、空载回。',
+    factorType: 'DYNAMIC',
+    description: '任务交叉(Interleaving)核心因子。实时调用 AGV 调度系统获取设备当前精确导航距离，避免设备重载去、空载回。',
     logic: { formula: 'Route(DropLocation, NextPickLocation)', unit: 'm' },
+    externalSource: {
+      endpoint: '/api/rcs/equipment/navigation-distance',
+      method: 'POST',
+      inputFields: ['EQUIPMENT.id', 'EQUIPMENT.currentLocation', 'targetLocation'],
+      outputField: 'distanceMeters',
+      cacheTtlMs: 5000,
+      fallbackValue: 999
+    },
     attributeRefs: ['EQUIPMENT.loadRate', 'EQUIPMENT.batteryLevel'],
     applicableActions: ['ASSIGN', 'ROUTE', 'ALLOCATE'],
     applicableStepTypes: ['SELECT', 'TRANSFORM'],
-    tags: ['interleaving', 'distance'],
+    tags: ['interleaving', 'distance', 'dynamic'],
     normalization: { method: 'MIN_MAX_DESC', range: [0, 1000], outputUnit: 'm' },
     businessMeaning: '衡量设备去接下一单前需要额外空驶多远。',
     decisionPurpose: '帮助 step 优先把任务给顺路设备，降低空跑和设备浪费。',
@@ -1801,6 +1863,35 @@ export const mockFactors: Factor[] = [
     businessMeaning: '代表按业务单据类型沉淀下来的默认收货兜底规则。',
     decisionPurpose: '帮助 step 在缺少人工指定和 SKU 主档指引时仍能落到一个合理默认位置。',
     interpretationHint: '更像最后兜底规则，不应压过更强的实时约束或人工指令。'
+  },
+  {
+    id: 'fact-pick-efficiency',
+    name: '拣货效率预测得分 (ML)',
+    targetObject: 'LOCATION',
+    category: 'PHYSICAL',
+    impactType: 'ADJUSTMENT',
+    factorType: 'ML_SCORE',
+    description: '基于历史拣货数据（路径、耗时、误拣率）训练的效率预测模型。对给定库位和操作员组合，预测完成拣货任务的期望效率得分（0-100）。',
+    externalSource: {
+      endpoint: '/api/ml/pick-efficiency-score',
+      method: 'POST',
+      inputFields: ['LOCATION.id', 'LOCATION.aisleIndex', 'OPERATOR.skillLevel', 'ORDER_LINE.skuCategory'],
+      outputField: 'efficiencyScore',
+      cacheTtlMs: 60000,
+      fallbackValue: 50
+    },
+    feedbackLoop: {
+      enabled: true,
+      kpiMetric: '人均拣货件/小时',
+      adjustmentInterval: 'DAILY'
+    },
+    applicableActions: ['SELECT', 'ASSIGN'],
+    applicableStepTypes: ['SELECT', 'TRANSFORM'],
+    tags: ['ml', 'efficiency', 'pick'],
+    normalization: { method: 'MIN_MAX_ASC', range: [0, 100], outputUnit: 'score' },
+    businessMeaning: '融合历史操作数据对拣货效率进行预测，识别高效和低效的库位-操作员组合。',
+    decisionPurpose: '帮助 step 在最终选址时优先考虑预期效率更高的方案，而非仅依赖距离。',
+    interpretationHint: '得分越高代表该组合历史效率越好，可作为补充评分叠加在距离因子之上。'
   }
 ];
 
@@ -1838,7 +1929,19 @@ const rawIndependentRules = [
         description: '实时监控商品在拣货位的手边库存。一旦 DOS（库存可用天数）触发临界阈值，系统自动拉动高位存储区进行就近补货。',
         targetSubject: 'CONTEXT',
         filters: [
-          { id: 'f-ind-1', field: '库存可用天数(DOS)', operator: '<', value: '1.5' }
+          { id: 'f-ind-1', field: '库存可用天数(DOS)', operator: '<', value: '1.5' },
+          {
+            id: 'f-ind-2', field: '拣货次数', operator: '>', value: '10',
+            conditionType: 'TIME_WINDOW',
+            logicalOperator: 'AND',
+            timeWindow: { duration: 2, unit: 'HOURS', aggregator: 'COUNT' }
+          },
+          {
+            id: 'f-ind-3', field: '库存消耗速率', operator: 'TREND_UP', value: '',
+            conditionType: 'AGGREGATE',
+            logicalOperator: 'AND',
+            timeWindow: { duration: 1, unit: 'DAYS', aggregator: 'TREND_UP' }
+          }
         ],
         sorters: [
           { factorId: 'fact-abc-hit', factorName: '动销 ABC 吻合度', weight: 100, direction: 'DESC' }

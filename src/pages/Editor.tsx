@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, RadarChart, ResponsiveContainer } from 'recharts';
-import { StrategyDetail, RuleStep, Factor, StrategyRule, FactorTarget, RuleStepAction, RuleStepType, StepInputBinding, ActionParamSchema } from '../types/wms';
+import { StrategyDetail, RuleStep, Factor, StrategyRule, FactorTarget, RuleStepAction, RuleStepType, StepInputBinding, ActionParamSchema, TriggerCondition, TriggerEventType, TrafficSplitConfig, MatchingCondition, ConditionType } from '../types/wms';
 import { mockFactors } from '../data/mock';
-import { getActionMeta, getActionParams, getAttributesByObject, getObjectMeta, subjectOptions } from '../data/metadata';
+import { allOperatorsGrouped, timeWindowOperators, getActionMeta, getActionParams, getAttributesByObject, getObjectMeta, subjectOptions } from '../data/metadata';
 import { Button, Card, Badge, Input } from '../components/ui';
 import { createDefaultStep, getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction, getEffectiveStepType } from '../utils/stepSemantics';
-import { ArrowLeft, ArrowRight, Save, Play, Plus, X, ArrowDown, ChevronRight, Settings, PlusCircle, Search, ChevronDown, GitBranch, GitMerge, HelpCircle, BookOpen, Layers, Zap, Code, Filter, Info, LayoutGrid, Sparkles, Activity, ShieldCheck, ShieldAlert, Box, Workflow, AlertCircle, Link as LinkIcon, ArrowDownRight, Scale } from 'lucide-react';
+import { validateStrategyGraph, ValidationResult } from '../utils/graphValidation';
+import { ArrowLeft, ArrowRight, Save, Play, Plus, X, ArrowDown, ChevronRight, Settings, PlusCircle, Search, ChevronDown, GitBranch, GitMerge, HelpCircle, BookOpen, Layers, Zap, Code, Filter, Info, LayoutGrid, Sparkles, Activity, ShieldCheck, ShieldAlert, Box, Workflow, AlertCircle, Link as LinkIcon, ArrowDownRight, Scale, Timer, Sliders, Bell, FlaskConical, SlidersHorizontal } from 'lucide-react';
 
 const calculateRadarData = (rule: StrategyRule) => {
   const text = JSON.stringify(rule).toLowerCase();
@@ -156,6 +157,94 @@ interface EditorProps {
   onOpenHelp: () => void;
 }
 
+function ExecutionConstraintsPanel({ step, onUpdate }: {
+  step: import('../types/wms').RuleStep;
+  onUpdate: (id: string, updates: Partial<import('../types/wms').RuleStep>) => void;
+}) {
+  const [ecOpen, setEcOpen] = useState(false);
+  const ec = step.executionConstraints;
+  const hasConstraints = ec?.maxCandidates !== undefined || ec?.timeoutMs !== undefined || ec?.maxOutputCount !== undefined;
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setEcOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex items-center gap-2 text-[11px] font-black text-slate-500 uppercase tracking-widest">
+          <Timer className="w-3.5 h-3.5" />
+          执行约束
+          {hasConstraints && (
+            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 text-[9px] font-black ml-1">
+              已配置
+            </span>
+          )}
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${ecOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {ecOpen && (
+        <div className="border-t border-slate-100 px-4 py-3 grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">最大候选数</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                className="w-full h-8 rounded-lg border border-slate-200 px-2.5 text-[12px] font-bold focus:outline-none focus:border-blue-400"
+                placeholder="如 500"
+                value={ec?.maxCandidates ?? ''}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : undefined;
+                  onUpdate(step.id, { executionConstraints: { ...ec, maxCandidates: v } });
+                }}
+              />
+              <span className="text-[10px] text-slate-400 shrink-0">条</span>
+            </div>
+            {ec?.maxCandidates !== undefined && ec.maxCandidates > 2000 && (
+              <p className="text-[9px] text-amber-600 mt-1">超过推荐上限 2000</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">步骤超时</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                className="w-full h-8 rounded-lg border border-slate-200 px-2.5 text-[12px] font-bold focus:outline-none focus:border-blue-400"
+                placeholder="如 500"
+                value={ec?.timeoutMs ?? ''}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : undefined;
+                  onUpdate(step.id, { executionConstraints: { ...ec, timeoutMs: v } });
+                }}
+              />
+              <span className="text-[10px] text-slate-400 shrink-0">ms</span>
+            </div>
+            {ec?.timeoutMs !== undefined && ec.timeoutMs < 50 && (
+              <p className="text-[9px] text-amber-600 mt-1">超时过短，建议 ≥ 50ms</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">最大输出数</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                className="w-full h-8 rounded-lg border border-slate-200 px-2.5 text-[12px] font-bold focus:outline-none focus:border-blue-400"
+                placeholder="如 50"
+                value={ec?.maxOutputCount ?? ''}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : undefined;
+                  onUpdate(step.id, { executionConstraints: { ...ec, maxOutputCount: v } });
+                }}
+              />
+              <span className="text-[10px] text-slate-400 shrink-0">条</span>
+            </div>
+          </div>
+          <p className="col-span-3 text-[9px] text-slate-400 mt-1">超时触发步骤的兜底动作（failoverAction）；候选数超限时截断后继续评分。</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Editor({ strategy, allStrategies, independentRules = [], onBack, onSimulate, onSave, onOpenHelp }: EditorProps) {
   const [data, setData] = useState<StrategyDetail | null>(strategy);
   const [draggedFactor, setDraggedFactor] = useState<Factor | null>(null);
@@ -167,6 +256,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
   const [editingParamsStepId, setEditingParamsStepId] = useState<string | null>(null);
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
   const [isGuardrailsOpen, setIsGuardrailsOpen] = useState(false);
+  const [isStrategySettingsOpen, setIsStrategySettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'triggers' | 'traffic'>('triggers');
 
   const [isPayloadModalOpen, setIsPayloadModalOpen] = useState(false);
 
@@ -607,8 +698,26 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
           if (r.id !== activeRuleId) return r;
           return {
             ...r,
-            matchingCriteria: r.matchingCriteria.map(c => 
+            matchingCriteria: r.matchingCriteria.map(c =>
               c.id === criteriaId ? { ...c, field, operator, value } : c
+            )
+          };
+        })
+      };
+    });
+  };
+
+  const handleUpdateCriteriaFull = (criteriaId: string, updates: Partial<MatchingCondition>) => {
+    setData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        rules: prev.rules.map(r => {
+          if (r.id !== activeRuleId) return r;
+          return {
+            ...r,
+            matchingCriteria: r.matchingCriteria.map(c =>
+              c.id === criteriaId ? { ...c, ...updates } : c
             )
           };
         })
@@ -995,6 +1104,14 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
       return acc;
     }, {} as Record<string, Factor[]>);
 
+  const validationResult: ValidationResult | null = useMemo(() => {
+    if (!data) return null;
+    return validateStrategyGraph(data);
+  }, [data]);
+
+  const hasValidationErrors = validationResult && !validationResult.valid;
+  const hasValidationWarnings = validationResult && validationResult.valid && validationResult.issues.length > 0;
+
   return (
     <div className="flex flex-col bg-theme-bg h-full font-sans text-theme-ink overflow-hidden">
       {/* Header */}
@@ -1032,7 +1149,12 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
             </Button>
             <div className="hidden h-6 w-px bg-theme-border xl:block"></div>
             <Button variant="secondary" className="min-h-9 bg-black/5 text-theme-ink hover:bg-black/10">实例版本</Button>
-            <Button variant="outline" className="min-h-9 gap-2"><Settings className="w-4 h-4" /> 实例属性</Button>
+            <Button variant="outline" className="min-h-9 gap-2 relative" onClick={() => setIsStrategySettingsOpen(true)}>
+              <Settings className="w-4 h-4" /> 实例属性
+              {(data?.triggerConditions?.some(t => t.enabled) || data?.trafficSplit?.enabled) && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white" />
+              )}
+            </Button>
             <Button variant="accent" className="min-h-9 gap-2" onClick={() => onSimulate(data!.id, activeRuleId || undefined)}>
               <Play className="w-3.5 h-3.5 fill-current" /> 仿真验证
             </Button>
@@ -1042,6 +1164,37 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
           </div>
         </div>
       </header>
+
+      {/* Validation Status Bar */}
+      {validationResult && validationResult.issues.length > 0 && (
+        <div className={`shrink-0 border-b px-4 py-2 flex items-center gap-3 flex-wrap ${hasValidationErrors ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className={`flex items-center gap-1.5 text-[11px] font-black ${hasValidationErrors ? 'text-red-700' : 'text-amber-700'}`}>
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            策略校验
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {validationResult.issues.map((issue, i) => (
+              <span
+                key={i}
+                className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border cursor-default ${
+                  issue.severity === 'ERROR'
+                    ? 'bg-red-100 text-red-700 border-red-200'
+                    : 'bg-amber-100 text-amber-700 border-amber-200'
+                }`}
+                title={issue.message}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${issue.severity === 'ERROR' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                {issue.message.length > 60 ? issue.message.slice(0, 60) + '…' : issue.message}
+              </span>
+            ))}
+          </div>
+          {hasValidationErrors && (
+            <span className="ml-auto text-[10px] font-black text-red-600 bg-red-100 px-2 py-0.5 rounded-full border border-red-200">
+              存在错误，无法激活
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 grid grid-cols-1 overflow-hidden min-h-0 xl:grid-cols-[280px_minmax(0,1fr)]">
@@ -1918,50 +2071,78 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                   </div>
                   
                   <div className="flex flex-col gap-3">
-                    {activeRule.matchingCriteria.map((cond, idx) => (
+                    {activeRule.matchingCriteria.map((cond, idx) => {
+                      const effectiveCondType: ConditionType = cond.conditionType ?? 'INSTANT';
+                      const isTimeWindow = effectiveCondType === 'TIME_WINDOW' || effectiveCondType === 'AGGREGATE';
+                      return (
                       <div key={cond.id} className="flex flex-col gap-2 p-3 bg-white border border-theme-border rounded-lg group shadow-sm transition-all hover:border-theme-primary/20">
                         <div className="flex items-center justify-between">
-                          <Badge variant="neutral" className="bg-theme-bg text-[10px] text-theme-muted border-theme-border/50 h-5 px-1.5 leading-none flex items-center gap-1">
-                            {cond.field.includes('SKU') ? '📦 SKU(商品)' : 
-                             cond.field.includes('收货') ? '📑 ORDER(单据)' : 
-                             cond.field.includes('订单') ? '📑 ORDER(出库单)' : 
-                             cond.field.includes('库') ? '🏬 WH(仓库)' : '⚙️ CONTEXT(上文)'}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="neutral" className="bg-theme-bg text-[10px] text-theme-muted border-theme-border/50 h-5 px-1.5 leading-none flex items-center gap-1">
+                              {cond.field.includes('SKU') ? '📦 SKU(商品)' :
+                               cond.field.includes('收货') ? '📑 ORDER(单据)' :
+                               cond.field.includes('订单') ? '📑 ORDER(出库单)' :
+                               cond.field.includes('库') ? '🏬 WH(仓库)' : '⚙️ CONTEXT(上文)'}
+                            </Badge>
+                            {/* ConditionType chip */}
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-bold flex items-center gap-0.5 ${
+                              effectiveCondType === 'INSTANT' ? 'bg-slate-50 text-slate-500 border-slate-200' :
+                              effectiveCondType === 'TIME_WINDOW' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                              'bg-violet-50 text-violet-600 border-violet-200'
+                            }`}>
+                              {effectiveCondType === 'INSTANT' ? '即时' : effectiveCondType === 'TIME_WINDOW' ? '时间窗口' : '趋势/聚合'}
+                            </span>
+                          </div>
                           <div className="text-[10px] text-theme-muted font-mono opacity-40">Index: {idx + 1}</div>
                         </div>
                         <div className="flex items-center gap-3">
                            <div className="flex-1 flex items-center bg-[#F8F9FA] border border-theme-border rounded-[8px] px-3 h-10 focus-within:ring-2 focus-within:ring-theme-primary/10 transition-all bg-white">
-                              <input 
-                                value={cond.field} 
+                              <input
+                                value={cond.field}
                                 onChange={(e) => handleUpdateCriteria(cond.id, e.target.value, cond.operator, cond.value)}
                                 className="w-full bg-transparent border-none text-theme-ink text-[13px] font-bold focus:outline-none"
                                 placeholder="业务属性 (e.g. 订单类型)"
                               />
                            </div>
-                           
+
                            <div className="relative shrink-0">
-                             <select 
-                               className="h-10 px-3 pr-8 bg-theme-bg border border-theme-border rounded-[8px] text-[12px] font-bold text-theme-ink appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-theme-primary/10"
+                             <select
+                               className={`h-10 px-3 pr-8 bg-theme-bg border rounded-[8px] text-[12px] font-bold appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-theme-primary/10 ${
+                                 effectiveCondType === 'INSTANT' ? 'border-theme-border text-theme-ink' :
+                                 effectiveCondType === 'TIME_WINDOW' ? 'border-blue-300 text-blue-700 bg-blue-50' :
+                                 'border-violet-300 text-violet-700 bg-violet-50'
+                               }`}
                                value={cond.operator}
-                               onChange={(e) => handleUpdateCriteria(cond.id, cond.field, e.target.value, cond.value)}
+                               onChange={(e) => {
+                                 const newOp = e.target.value;
+                                 const twOp = timeWindowOperators.find(o => o.value === newOp);
+                                 const newCondType: ConditionType = twOp ? twOp.conditionType : 'INSTANT';
+                                 handleUpdateCriteriaFull(cond.id, {
+                                   operator: newOp,
+                                   conditionType: newCondType,
+                                   timeWindow: newCondType === 'INSTANT' ? undefined : (cond.timeWindow ?? { duration: 1, unit: 'HOURS', aggregator: 'COUNT' })
+                                 });
+                               }}
                              >
-                                <option value="==">==</option>
-                                <option value="!=">!=</option>
-                                <option value=">">&gt;</option>
-                                <option value="<">&lt;</option>
-                                <option value="IN">IN</option>
+                               {allOperatorsGrouped.map(group => (
+                                 <optgroup key={group.group} label={group.group}>
+                                   {group.operators.map(op => (
+                                     <option key={op.value} value={op.value}>{op.label ?? op.value}</option>
+                                   ))}
+                                 </optgroup>
+                               ))}
                              </select>
                              <ChevronDown className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-theme-muted pointer-events-none" />
                            </div>
 
                            <div className="flex-1 flex items-center bg-white border border-theme-border rounded-[8px] px-3 h-10 focus-within:ring-2 focus-within:ring-theme-primary/10 transition-all group/val relative">
-                              <input 
-                                value={cond.value} 
+                              <input
+                                value={cond.value}
                                 onChange={(e) => handleUpdateCriteria(cond.id, cond.field, cond.operator, e.target.value)}
                                 className="w-full bg-transparent border-none text-theme-ink text-[13px] font-medium focus:outline-none text-theme-accent"
                                 placeholder="匹配值..."
                               />
-                              <button 
+                              <button
                                 onClick={() => handleRemoveCriteria(cond.id)}
                                 className="absolute -right-2 top-1/2 -translate-y-1/2 bg-red-50 text-red-500 w-5 h-5 rounded-full items-center justify-center border border-red-100 shadow-sm opacity-0 group-hover:opacity-100 group-hover/val:opacity-100 transition-all flex"
                               >
@@ -1969,8 +2150,46 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                               </button>
                            </div>
                         </div>
+
+                        {/* Time-window sub-fields */}
+                        {isTimeWindow && (
+                          <div className={`flex items-center gap-2 pt-2 border-t ${effectiveCondType === 'TIME_WINDOW' ? 'border-blue-100' : 'border-violet-100'}`}>
+                            <span className={`text-[10px] font-bold shrink-0 ${effectiveCondType === 'TIME_WINDOW' ? 'text-blue-600' : 'text-violet-600'}`}>
+                              {effectiveCondType === 'TIME_WINDOW' ? '时间窗口:' : '聚合设置:'}
+                            </span>
+                            {effectiveCondType === 'TIME_WINDOW' && (<>
+                              <input
+                                type="number"
+                                className="w-16 h-7 px-2 text-[11px] font-mono border border-blue-200 rounded bg-blue-50 text-blue-800 outline-none"
+                                value={cond.timeWindow?.duration ?? 1}
+                                onChange={(e) => handleUpdateCriteriaFull(cond.id, { timeWindow: { ...cond.timeWindow!, duration: Number(e.target.value) } })}
+                                min={1}
+                              />
+                              <select
+                                className="h-7 px-2 text-[11px] font-bold border border-blue-200 rounded bg-blue-50 text-blue-800 outline-none"
+                                value={cond.timeWindow?.unit ?? 'HOURS'}
+                                onChange={(e) => handleUpdateCriteriaFull(cond.id, { timeWindow: { ...cond.timeWindow!, unit: e.target.value as any } })}
+                              >
+                                <option value="MINUTES">分钟</option>
+                                <option value="HOURS">小时</option>
+                                <option value="DAYS">天</option>
+                              </select>
+                              <span className="text-[10px] text-blue-500 font-bold">内聚合方式:</span>
+                            </>)}
+                            <select
+                              className={`h-7 px-2 text-[11px] font-bold border rounded outline-none ${effectiveCondType === 'TIME_WINDOW' ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-violet-200 bg-violet-50 text-violet-800'}`}
+                              value={cond.timeWindow?.aggregator ?? 'COUNT'}
+                              onChange={(e) => handleUpdateCriteriaFull(cond.id, { timeWindow: { ...(cond.timeWindow ?? { duration: 1, unit: 'HOURS' }), aggregator: e.target.value as any } })}
+                            >
+                              {['COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'TREND_UP', 'TREND_DOWN'].map(agg => (
+                                <option key={agg} value={agg}>{agg}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -2723,30 +2942,144 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                     <div className="flex flex-wrap gap-3">
                                       {stepSorters.map((sorter: RuleStep['sorters'][number]) => {
                                         const factor = mockFactors.find(f => f.id === sorter.factorId);
+                                        const hasOverrides = (sorter.weightOverrides?.length ?? 0) > 0;
                                         return (
-                                          <div key={sorter.factorId} className="bg-white border border-theme-border pl-3 pr-1 py-1 gap-3 rounded-full flex items-center shadow-sm hover:shadow-md hover:border-theme-primary transition-all group/chip">
-                                            <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[12px] group-hover/chip:bg-blue-50 transition-colors">
-                                              {factor?.targetObject === 'LOCATION' ? '📦' : factor?.targetObject === 'INVENTORY_LOT' ? '📊' : factor?.targetObject === 'CONTEXT' ? '⚖️' : factor?.targetObject === 'EQUIPMENT' ? '⚡' : factor?.targetObject === 'ORDER_LINE' ? '📋' : '⚙️'}
+                                          <div key={sorter.factorId} className="flex flex-col gap-1.5">
+                                            <div className="bg-white border border-theme-border pl-3 pr-1 py-1 gap-3 rounded-full flex items-center shadow-sm hover:shadow-md hover:border-theme-primary transition-all group/chip relative">
+                                              {hasOverrides && (
+                                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white" title="已配置条件权重覆盖" />
+                                              )}
+                                              <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[12px] group-hover/chip:bg-blue-50 transition-colors">
+                                                {factor?.targetObject === 'LOCATION' ? '📦' : factor?.targetObject === 'INVENTORY_LOT' ? '📊' : factor?.targetObject === 'CONTEXT' ? '⚖️' : factor?.targetObject === 'EQUIPMENT' ? '⚡' : factor?.targetObject === 'ORDER_LINE' ? '📋' : '⚙️'}
+                                              </div>
+                                              <span className="text-[11px] font-bold text-slate-700 tracking-tight">{sorter.factorName}</span>
+                                              <div className="flex items-center gap-1.5 bg-[#F2F2F7] rounded-full px-2 py-0.5 ml-1">
+                                                <input
+                                                  type="number"
+                                                  className="w-8 bg-transparent text-[11px] font-black text-theme-primary focus:outline-none text-center"
+                                                  value={sorter.weight}
+                                                  onChange={(e) => handleWeightChange(step.id, sorter.factorId, Number(e.target.value))}
+                                                />
+                                                <span className="text-[10px] font-bold text-theme-muted">%</span>
+                                              </div>
+                                              <button
+                                                title="条件权重覆盖"
+                                                className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-blue-50 text-slate-300 hover:text-blue-500 transition-colors"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  const newOverride = { id: `wo-${Date.now()}`, label: '新条件', conditions: [], weight: sorter.weight };
+                                                  setData((prev: StrategyDetail | null) => {
+                                                    if (!prev) return prev;
+                                                    return {
+                                                      ...prev,
+                                                      rules: prev.rules.map(r => r.id !== activeRuleId ? r : {
+                                                        ...r,
+                                                        steps: r.steps.map((s: RuleStep) => s.id !== step.id ? s : {
+                                                          ...s,
+                                                          sorters: s.sorters.map(x => x.factorId !== sorter.factorId ? x : {
+                                                            ...x,
+                                                            weightOverrides: [...(x.weightOverrides ?? []), newOverride]
+                                                          })
+                                                        })
+                                                      })
+                                                    };
+                                                  });
+                                                }}
+                                              >
+                                                <SlidersHorizontal className="w-3 h-3" />
+                                              </button>
+                                              <button
+                                                className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleRemoveFactor(step.id, sorter.factorId);
+                                                }}
+                                              >
+                                                <X className="w-3.5 h-3.5" />
+                                              </button>
                                             </div>
-                                            <span className="text-[11px] font-bold text-slate-700 tracking-tight">{sorter.factorName}</span>
-                                            <div className="flex items-center gap-1.5 bg-[#F2F2F7] rounded-full px-2 py-0.5 ml-1">
-                                              <input
-                                                type="number"
-                                                className="w-8 bg-transparent text-[11px] font-black text-theme-primary focus:outline-none text-center"
-                                                value={sorter.weight}
-                                                onChange={(e) => handleWeightChange(step.id, sorter.factorId, Number(e.target.value))}
-                                              />
-                                              <span className="text-[10px] font-bold text-theme-muted">%</span>
-                                            </div>
-                                            <button
-                                              className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleRemoveFactor(step.id, sorter.factorId);
-                                              }}
-                                            >
-                                              <X className="w-3.5 h-3.5" />
-                                            </button>
+                                            {hasOverrides && (
+                                              <div className="ml-2 flex flex-col gap-1.5 pl-3 border-l-2 border-blue-200">
+                                                <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">条件权重覆盖</p>
+                                                {sorter.weightOverrides!.map((wo) => (
+                                                  <div key={wo.id} className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5">
+                                                    <input
+                                                      className="text-[11px] font-bold text-slate-700 bg-transparent border-none focus:outline-none flex-1 min-w-0"
+                                                      value={wo.label}
+                                                      placeholder="条件描述"
+                                                      onChange={e => {
+                                                        setData((prev: StrategyDetail | null) => {
+                                                          if (!prev) return prev;
+                                                          return {
+                                                            ...prev,
+                                                            rules: prev.rules.map(r => r.id !== activeRuleId ? r : {
+                                                              ...r,
+                                                              steps: r.steps.map((s: RuleStep) => s.id !== step.id ? s : {
+                                                                ...s,
+                                                                sorters: s.sorters.map(x => x.factorId !== sorter.factorId ? x : {
+                                                                  ...x,
+                                                                  weightOverrides: x.weightOverrides!.map(w => w.id !== wo.id ? w : { ...w, label: e.target.value })
+                                                                })
+                                                              })
+                                                            })
+                                                          };
+                                                        });
+                                                      }}
+                                                    />
+                                                    <div className="flex items-center gap-1 bg-white border border-blue-200 rounded-full px-2 py-0.5">
+                                                      <input
+                                                        type="number"
+                                                        className="w-8 text-[11px] font-black text-blue-600 bg-transparent focus:outline-none text-center"
+                                                        value={wo.weight}
+                                                        onChange={e => {
+                                                          const newW = Number(e.target.value);
+                                                          setData((prev: StrategyDetail | null) => {
+                                                            if (!prev) return prev;
+                                                            return {
+                                                              ...prev,
+                                                              rules: prev.rules.map(r => r.id !== activeRuleId ? r : {
+                                                                ...r,
+                                                                steps: r.steps.map((s: RuleStep) => s.id !== step.id ? s : {
+                                                                  ...s,
+                                                                  sorters: s.sorters.map(x => x.factorId !== sorter.factorId ? x : {
+                                                                    ...x,
+                                                                    weightOverrides: x.weightOverrides!.map(w => w.id !== wo.id ? w : { ...w, weight: newW })
+                                                                  })
+                                                                })
+                                                              })
+                                                            };
+                                                          });
+                                                        }}
+                                                      />
+                                                      <span className="text-[9px] text-blue-400">%</span>
+                                                    </div>
+                                                    <button
+                                                      className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-100 text-slate-300 hover:text-red-500 transition-colors"
+                                                      onClick={() => {
+                                                        setData((prev: StrategyDetail | null) => {
+                                                          if (!prev) return prev;
+                                                          return {
+                                                            ...prev,
+                                                            rules: prev.rules.map(r => r.id !== activeRuleId ? r : {
+                                                              ...r,
+                                                              steps: r.steps.map((s: RuleStep) => s.id !== step.id ? s : {
+                                                                ...s,
+                                                                sorters: s.sorters.map(x => x.factorId !== sorter.factorId ? x : {
+                                                                  ...x,
+                                                                  weightOverrides: x.weightOverrides!.filter(w => w.id !== wo.id)
+                                                                })
+                                                              })
+                                                            })
+                                                          };
+                                                        });
+                                                      }}
+                                                    >
+                                                      <X className="w-3 h-3" />
+                                                    </button>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
                                           </div>
                                         );
                                       })}
@@ -2762,6 +3095,9 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
 
                             return null;
                           })}
+
+                          {/* Execution Constraints Panel */}
+                          <ExecutionConstraintsPanel step={step} onUpdate={handleUpdateStep} />
                         </div>
                       </div>
                     </div>
@@ -3388,6 +3724,243 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     <Button variant="ghost" className="font-bold text-[13px]" onClick={() => setIsGuardrailsOpen(false)}>暂不调整</Button>
                     <Button variant="primary" className="bg-red-600 hover:bg-red-700 text-white font-bold text-[13px] px-8" onClick={() => setIsGuardrailsOpen(false)}>应用并同步全域容器</Button>
                  </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Strategy Settings Modal (Triggers + Traffic Split) */}
+      <AnimatePresence>
+        {isStrategySettingsOpen && data && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 font-sans"
+            onClick={() => setIsStrategySettingsOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[24px] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20">
+                    <Settings className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-[17px] font-black text-slate-900 tracking-tight m-0">实例属性配置</h2>
+                    <p className="text-[11px] text-slate-400 font-medium">{data.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsStrategySettingsOpen(false)} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1 px-8 pt-5 border-b border-slate-100 pb-0">
+                {([
+                  { key: 'triggers', label: '事件触发条件', icon: Bell },
+                  { key: 'traffic', label: '灰度发布', icon: FlaskConical },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setSettingsTab(tab.key)}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-[12px] font-black rounded-t-xl border-b-2 transition-all -mb-px ${
+                      settingsTab === tab.key
+                        ? 'text-blue-600 border-blue-600 bg-blue-50/50'
+                        : 'text-slate-400 border-transparent hover:text-slate-600'
+                    }`}
+                  >
+                    <tab.icon className="w-3.5 h-3.5" />
+                    {tab.label}
+                    {tab.key === 'triggers' && data.triggerConditions?.some((t: { enabled: boolean }) => t.enabled) && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    )}
+                    {tab.key === 'traffic' && data.trafficSplit?.enabled && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
+
+                {/* Trigger Conditions Tab */}
+                {settingsTab === 'triggers' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[12px] text-slate-500">配置仓库事件自动触发此策略，无需手动调度。</p>
+                      <button
+                        onClick={() => {
+                          const newTrigger: TriggerCondition = {
+                            id: `tc-${Date.now()}`,
+                            name: '新触发器',
+                            enabled: true,
+                            eventType: 'ORDER_ARRIVED',
+                            subject: data.primarySubject,
+                            conditions: [],
+                          };
+                          setData(prev => prev ? { ...prev, triggerConditions: [...(prev.triggerConditions ?? []), newTrigger] } : prev);
+                        }}
+                        className="flex items-center gap-1.5 text-[11px] font-black text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> 添加触发器
+                      </button>
+                    </div>
+                    {(data.triggerConditions ?? []).length === 0 && (
+                      <div className="py-12 text-center text-slate-400 text-[12px] border-2 border-dashed border-slate-200 rounded-xl">
+                        暂未配置事件触发器，策略仅支持手动调用
+                      </div>
+                    )}
+                    {(data.triggerConditions ?? []).map((tc: TriggerCondition) => (
+                      <div key={tc.id} className="border border-slate-200 rounded-2xl overflow-hidden">
+                        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={tc.enabled}
+                              onChange={e => setData(prev => prev ? {
+                                ...prev,
+                                triggerConditions: prev.triggerConditions!.map((t: TriggerCondition) => t.id === tc.id ? { ...t, enabled: e.target.checked } : t)
+                              } : prev)}
+                              className="w-4 h-4 rounded accent-blue-600"
+                            />
+                            <input
+                              className="flex-1 bg-transparent text-[13px] font-black text-slate-800 focus:outline-none min-w-0"
+                              value={tc.name}
+                              onChange={e => setData(prev => prev ? {
+                                ...prev,
+                                triggerConditions: prev.triggerConditions!.map((t: TriggerCondition) => t.id === tc.id ? { ...t, name: e.target.value } : t)
+                              } : prev)}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="relative">
+                              <select
+                                value={tc.eventType}
+                                className="text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 pr-6 appearance-none focus:outline-none cursor-pointer"
+                                onChange={e => setData(prev => prev ? {
+                                  ...prev,
+                                  triggerConditions: prev.triggerConditions!.map((t: TriggerCondition) => t.id === tc.id ? { ...t, eventType: e.target.value as TriggerEventType } : t)
+                                } : prev)}
+                              >
+                                {(['INVENTORY_CHANGE','ORDER_ARRIVED','EQUIPMENT_STATUS','WIP_THRESHOLD','TIME_SCHEDULE','MANUAL'] as TriggerEventType[]).map(ev => (
+                                  <option key={ev} value={ev}>{ev}</option>
+                                ))}
+                              </select>
+                              <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none" />
+                            </div>
+                            <button onClick={() => setData(prev => prev ? { ...prev, triggerConditions: prev.triggerConditions!.filter((t: TriggerCondition) => t.id !== tc.id) } : prev)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="px-4 py-3 flex items-center gap-4">
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <span className="font-black">冷却时间</span>
+                            <input
+                              type="number"
+                              className="w-20 h-7 border border-slate-200 rounded-lg px-2 text-[11px] font-black focus:outline-none focus:border-blue-400"
+                              value={(tc.cooldownMs ?? 0) / 1000}
+                              onChange={e => setData(prev => prev ? {
+                                ...prev,
+                                triggerConditions: prev.triggerConditions!.map((t: TriggerCondition) => t.id === tc.id ? { ...t, cooldownMs: Number(e.target.value) * 1000 } : t)
+                              } : prev)}
+                            />
+                            <span>秒</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400">触发条件数: {tc.conditions.length}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Traffic Split Tab */}
+                {settingsTab === 'traffic' && (
+                  <div className="space-y-5">
+                    <p className="text-[12px] text-slate-500">将一部分真实流量路由到此策略（实验版本），与基线策略并排运行，比较 KPI 差异。</p>
+                    <div className="flex items-center justify-between border border-slate-200 rounded-xl px-4 py-3">
+                      <span className="text-[13px] font-black text-slate-700">启用灰度发布</span>
+                      <button
+                        onClick={() => setData(prev => {
+                          if (!prev) return prev;
+                          const current = prev.trafficSplit;
+                          if (!current) {
+                            const newSplit: TrafficSplitConfig = { enabled: true, baselineStrategyId: '', experimentStrategyId: prev.id, splitRatio: 10, splitKey: 'ORDER_ID' };
+                            return { ...prev, trafficSplit: newSplit };
+                          }
+                          return { ...prev, trafficSplit: { ...current, enabled: !current.enabled } };
+                        })}
+                        className={`w-11 h-6 rounded-full transition-colors relative ${data.trafficSplit?.enabled ? 'bg-blue-600' : 'bg-slate-200'}`}
+                      >
+                        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${data.trafficSplit?.enabled ? 'left-5.5' : 'left-0.5'}`} />
+                      </button>
+                    </div>
+                    {data.trafficSplit && (
+                      <div className={`space-y-4 transition-opacity ${data.trafficSplit.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">基线策略</label>
+                          <div className="relative">
+                            <select
+                              value={data.trafficSplit.baselineStrategyId}
+                              onChange={e => setData(prev => prev ? { ...prev, trafficSplit: { ...prev.trafficSplit!, baselineStrategyId: e.target.value } } : prev)}
+                              className="w-full h-9 border border-slate-200 rounded-xl px-3 pr-8 text-[12px] font-bold appearance-none focus:outline-none focus:border-blue-400"
+                            >
+                              <option value="">请选择基线策略</option>
+                              {allStrategies.filter(s => s.id !== data.id && s.status === 'ACTIVE').map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">实验流量比例: {data.trafficSplit.splitRatio}%</label>
+                          <input
+                            type="range" min={1} max={50}
+                            value={data.trafficSplit.splitRatio}
+                            onChange={e => setData(prev => prev ? { ...prev, trafficSplit: { ...prev.trafficSplit!, splitRatio: Number(e.target.value) } } : prev)}
+                            className="w-full accent-blue-600"
+                          />
+                          <div className="flex justify-between text-[9px] text-slate-400 mt-1"><span>1%</span><span>50%</span></div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">流量切分键</label>
+                          <div className="flex gap-2 flex-wrap">
+                            {(['ORDER_ID','ZONE','TIME_SLOT','OPERATOR'] as const).map(k => (
+                              <button
+                                key={k}
+                                onClick={() => setData(prev => prev ? { ...prev, trafficSplit: { ...prev.trafficSplit!, splitKey: k } } : prev)}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${data.trafficSplit!.splitKey === k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}
+                              >{k}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">对比 KPI 指标</label>
+                          <input
+                            className="w-full h-9 border border-slate-200 rounded-xl px-3 text-[12px] font-bold focus:outline-none focus:border-blue-400"
+                            placeholder="如：称重误差率、拣货效率"
+                            value={data.trafficSplit.targetKpi ?? ''}
+                            onChange={e => setData(prev => prev ? { ...prev, trafficSplit: { ...prev.trafficSplit!, targetKpi: e.target.value } } : prev)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 border-t border-slate-100 px-8 py-5">
+                <Button variant="ghost" className="font-bold" onClick={() => setIsStrategySettingsOpen(false)}>取消</Button>
+                <Button variant="primary" className="flex-1 font-bold" onClick={() => { handleSave(); setIsStrategySettingsOpen(false); }}>保存配置</Button>
               </div>
             </motion.div>
           </div>

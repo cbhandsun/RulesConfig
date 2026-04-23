@@ -336,6 +336,25 @@ export const actionMetas: ActionMeta[] = [
   { code: 'REDIRECT', name: '改道', description: '重定向到新路径', executionMeaning: '把当前对象或流程切换到另一条后续处理路径。', decisionGuidance: '适合异常分流、拥堵绕行、策略降级。', typicalOutputs: ['改道路径', '改派节点'], params: [] },
 ];
 
+export const instantOperators = ['==', '!=', '>', '>=', '<', '<=', 'IN', 'NOT_IN', 'MATCH', 'EXCLUDE'];
+
+export const timeWindowOperators = [
+  { value: 'TIME_WINDOW_GT', label: '时间窗口内 > N', conditionType: 'TIME_WINDOW' as const },
+  { value: 'TIME_WINDOW_LT', label: '时间窗口内 < N', conditionType: 'TIME_WINDOW' as const },
+  { value: 'TIME_WINDOW_GTE', label: '时间窗口内 >= N', conditionType: 'TIME_WINDOW' as const },
+  { value: 'AGG_COUNT_GT', label: '统计次数 > N', conditionType: 'AGGREGATE' as const },
+  { value: 'AGG_SUM_GT', label: '统计求和 > N', conditionType: 'AGGREGATE' as const },
+  { value: 'AGG_AVG_GT', label: '统计均值 > N', conditionType: 'AGGREGATE' as const },
+  { value: 'TREND_UP', label: '趋势上升', conditionType: 'AGGREGATE' as const },
+  { value: 'TREND_DOWN', label: '趋势下降', conditionType: 'AGGREGATE' as const },
+];
+
+export const allOperatorsGrouped = [
+  { group: '即时比较', operators: instantOperators.map(v => ({ value: v, label: v, conditionType: 'INSTANT' as const })) },
+  { group: '时间窗口', operators: timeWindowOperators.filter(o => o.conditionType === 'TIME_WINDOW') },
+  { group: '趋势/聚合', operators: timeWindowOperators.filter(o => o.conditionType === 'AGGREGATE') },
+];
+
 export const subjectOptions = objectMetas.map(({ code, name, icon }) => ({ value: code, label: `${icon ? `${icon} ` : ''}${name}` }));
 
 export const getObjectMeta = (code: FactorTarget) => objectMetas.find(objectMeta => objectMeta.code === code);

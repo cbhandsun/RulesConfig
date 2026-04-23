@@ -1,7 +1,7 @@
 import React from 'react';
 import { StrategyDetail, StrategyCategory } from '../types/wms';
 import { Button, Card, Badge, Input } from '../components/ui';
-import { Plus, Search, Edit2, Play, Info, BookOpen, Layers, Shuffle, LayoutGrid, ArrowLeftRight, Zap } from 'lucide-react';
+import { Plus, Search, Edit2, Play, Info, BookOpen, Layers, Shuffle, LayoutGrid, ArrowLeftRight, Zap, Bell, FlaskConical } from 'lucide-react';
 import { getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction } from '../utils/stepSemantics';
 
 interface DashboardProps {
@@ -247,9 +247,21 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
                    </td>
                   <td className="px-4 py-4 text-theme-muted font-mono text-[12px]">{strategy.version}</td>
                   <td className="px-4 py-4">
-                    <Badge variant={strategy.status === 'ACTIVE' ? 'success' : 'neutral'} className={strategy.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : ''}>
-                      {strategy.status === 'ACTIVE' ? '执行中' : '已停用'}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant={strategy.status === 'ACTIVE' ? 'success' : 'neutral'} className={strategy.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : ''}>
+                        {strategy.status === 'ACTIVE' ? '执行中' : strategy.status === 'DRAFT' ? '草稿' : '已停用'}
+                      </Badge>
+                      {strategy.triggerConditions?.some(t => t.enabled) && (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full" title="已配置事件触发器">
+                          <Bell className="w-2.5 h-2.5" /> 触发
+                        </span>
+                      )}
+                      {strategy.trafficSplit?.enabled && (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-black text-purple-600 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-full" title={`灰度发布 ${strategy.trafficSplit.splitRatio}%`}>
+                          <FlaskConical className="w-2.5 h-2.5" /> 灰度 {strategy.trafficSplit.splitRatio}%
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap items-center justify-end gap-2">

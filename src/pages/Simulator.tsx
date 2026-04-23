@@ -3,7 +3,9 @@ import { BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as Re
 import { StrategyDetail } from '../types/wms';
 import { getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction } from '../utils/stepSemantics';
 import { Button, Input, Badge, Select, Card } from '../components/ui';
-import { X, Loader2, BarChart, Activity, TrendingUp, ShieldCheck, History, Info, ArrowLeftRight, PlayCircle, Settings2, Sparkles, ShieldAlert, BookOpen } from 'lucide-react';
+import { X, Loader2, BarChart, Activity, TrendingUp, ShieldCheck, History, Info, ArrowLeftRight, PlayCircle, Settings2, Sparkles, ShieldAlert, BookOpen, GitBranch, Download, ChevronDown, ChevronRight, Timer } from 'lucide-react';
+import { executeStrategy } from '../utils/mockExecutionEngine';
+import { ExecutionTrace } from '../types/trace';
 
 interface SimulatorProps {
   strategy: StrategyDetail | null;
@@ -42,8 +44,11 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
   const [hasRun, setHasRun] = useState(false);
   const [simResult, setSimResult] = useState<SimResult | null>(null);
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
+  const [executionTrace, setExecutionTrace] = useState<ExecutionTrace | null>(null);
+  const [traceTab, setTraceTab] = useState<'funnel' | 'trace'>('funnel');
+  const [expandedRuleId, setExpandedRuleId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'SINGLE' | 'BATCH' | 'SHADOW'>('SINGLE');
-  
+
   const [envSnapshot, setEnvSnapshot] = useState('sh1');
 
   const handleRunShadow = () => {
@@ -99,6 +104,8 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
     if(!strategy) return;
     setIsRunning(true);
     setHasRun(false);
+    setExecutionTrace(null);
+    setTraceTab('funnel');
     
     // Dynamic Simulation Logic based on current strategy rules
     let totalLocations = Math.floor(Math.random() * 5000 + 10000); // Start 10k ~ 15k locations
@@ -186,6 +193,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
     const locPrefixes = envSnapshot === 'sh1' ? ['A1','B2','C1'] : ['W1','X2','Y1'];
 
     setTimeout(() => {
+      setExecutionTrace(executeStrategy(strategy, { envSnapshot, owner: strategy.owner }));
       setSimResult({
         logs,
         guardrailResults,
@@ -599,6 +607,25 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                    </div>
                 </div>
 
+                {/* Tab switcher: Funnel vs Trace */}
+                <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
+                  <button
+                    onClick={() => setTraceTab('funnel')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold rounded-md transition-all ${traceTab === 'funnel' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    <Activity className="w-3.5 h-3.5 shrink-0" /> 漏斗分析
+                  </button>
+                  <button
+                    onClick={() => setTraceTab('trace')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold rounded-md transition-all ${traceTab === 'trace' ? 'bg-white shadow text-violet-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    <GitBranch className="w-3.5 h-3.5 shrink-0" /> 决策 Trace
+                    {executionTrace && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0 ml-1"></span>}
+                  </button>
+                </div>
+
+                {traceTab === 'funnel' && (<>
+
                 <div className="mb-4">
                   <div className="text-[12px] flex justify-between font-medium">
                     <span>策略命中保存率 (Match Rate)</span>
@@ -717,6 +744,172 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                </>)}
+
+                {traceTab === 'trace' && executionTrace && (
+                  <div className="space-y-4">
+                    {/* Trace header */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-medium text-theme-ink">{executionTrace.decisionSummary}</p>
+                        <p className="text-[10px] text-theme-muted font-mono mt-0.5">Trace: {executionTrace.traceId} | 总耗时 {executionTrace.totalDurationMs}ms</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const blob = new Blob([JSON.stringify(executionTrace, null, 2)], { type: 'application/json' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `trace-${executionTrace.traceId}.json`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" /> 导出 JSON
+                      </button>
+                    </div>
+
+                    {/* Guardrail hits */}
+                    {executionTrace.guardrailsEvaluated.some(g => g.hitCount > 0) && (
+                      <div className="border border-red-100 bg-red-50/50 rounded-xl p-4">
+                        <h5 className="text-[11px] font-bold text-red-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <ShieldAlert className="w-3.5 h-3.5" /> 护栏命中记录
+                        </h5>
+                        <div className="space-y-2">
+                          {executionTrace.guardrailsEvaluated.filter(g => g.hitCount > 0).map(g => (
+                            <div key={g.guardrailId} className="flex items-start justify-between gap-2 text-[11px]">
+                              <span className={`font-semibold ${g.type === 'BLOCK' ? 'text-red-700' : 'text-amber-700'}`}>{g.guardrailName}</span>
+                              <span className="font-mono text-slate-500 text-right">命中 {g.hitCount} 次</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rule timeline */}
+                    <div>
+                      <h5 className="text-[11px] font-bold text-theme-muted uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <GitBranch className="w-3.5 h-3.5" /> 规则执行时间线
+                      </h5>
+                      <div className="space-y-2">
+                        {executionTrace.rules.map(ruleTrace => (
+                          <div key={ruleTrace.ruleId} className="border border-theme-border rounded-xl bg-white overflow-hidden">
+                            <button
+                              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                              onClick={() => setExpandedRuleId(expandedRuleId === ruleTrace.ruleId ? null : ruleTrace.ruleId)}
+                            >
+                              {expandedRuleId === ruleTrace.ruleId
+                                ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                : <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[12px] font-semibold text-theme-ink truncate">{ruleTrace.ruleName}</span>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${ruleTrace.activated ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+                                    {ruleTrace.activated ? '激活' : '跳过'}
+                                  </span>
+                                </div>
+                                <p className={`text-[10px] mt-0.5 truncate ${ruleTrace.activated ? 'text-slate-500' : 'text-red-400'}`}>
+                                  {ruleTrace.activated ? ruleTrace.activationReason : ruleTrace.skippedReason}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${ruleTrace.activated ? 'bg-blue-400' : 'bg-slate-300'}`}
+                                    style={{ width: `${Math.min(100, Math.max(4, (ruleTrace.durationMs / Math.max(executionTrace.totalDurationMs, 1)) * 300))}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] font-mono text-slate-400 w-12 text-right">{ruleTrace.durationMs}ms</span>
+                              </div>
+                            </button>
+
+                            {expandedRuleId === ruleTrace.ruleId && ruleTrace.activated && ruleTrace.steps.length > 0 && (
+                              <div className="border-t border-theme-border bg-slate-50/50 px-4 py-3 space-y-4">
+                                {ruleTrace.steps.map((stepTrace, si) => (
+                                  <div key={stepTrace.stepId} className="space-y-2">
+                                    {/* Step header */}
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded bg-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">{si + 1}</span>
+                                      <span className="text-[11px] font-semibold text-theme-ink flex-1 truncate">{stepTrace.stepName}</span>
+                                      {stepTrace.truncatedByConstraint && (
+                                        <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-100 rounded px-1.5 py-0.5 font-bold flex items-center gap-1 shrink-0">
+                                          <Timer className="w-2.5 h-2.5" /> {stepTrace.truncatedByConstraint}
+                                        </span>
+                                      )}
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${stepTrace.flowDecision === 'TERMINATE' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                        {stepTrace.flowDecision}
+                                      </span>
+                                      <span className="text-[10px] font-mono text-slate-400 shrink-0">{stepTrace.durationMs}ms</span>
+                                    </div>
+
+                                    {/* Input → Output bar */}
+                                    <div className="flex items-center gap-2 pl-7">
+                                      <span className="text-[11px] font-mono text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-0.5 shrink-0">{stepTrace.inputCount} 输入</span>
+                                      <div className="flex-1 h-px bg-gradient-to-r from-blue-200 to-emerald-200"></div>
+                                      <span className="text-[11px] font-mono text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-2 py-0.5 shrink-0">{stepTrace.outputCount} 输出</span>
+                                      <span className="text-[10px] text-red-400 font-mono shrink-0">(-{stepTrace.inputCount - stepTrace.outputCount})</span>
+                                    </div>
+
+                                    {/* Filters */}
+                                    {stepTrace.filtersApplied.length > 0 && (
+                                      <div className="pl-7 space-y-0.5">
+                                        {stepTrace.filtersApplied.map(f => (
+                                          <div key={f.filterId} className="flex items-center justify-between text-[10px]">
+                                            <span className="text-slate-400 font-mono truncate">{f.field} {f.operator} {f.value}</span>
+                                            <span className="text-red-400 font-mono shrink-0 ml-2">-{f.candidatesRemovedCount}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {/* Top candidates factor score table */}
+                                    {stepTrace.topCandidates.length > 0 && stepTrace.topCandidates[0].factorScores.length > 0 && (
+                                      <div className="pl-7">
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1.5">Top 候选因子得分</p>
+                                        <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                          <table className="text-[10px] w-full">
+                                            <thead>
+                                              <tr className="bg-slate-50 text-slate-400">
+                                                <th className="text-left px-2 py-1.5 font-bold">候选</th>
+                                                {stepTrace.topCandidates[0].factorScores.map(f => (
+                                                  <th key={f.factorId} className="text-right px-2 py-1.5 font-bold">{f.factorName}</th>
+                                                ))}
+                                                <th className="text-right px-2 py-1.5 font-bold">总分</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                              {stepTrace.topCandidates.map(c => (
+                                                <tr key={c.candidateId} className={c.selected ? 'bg-emerald-50/50' : ''}>
+                                                  <td className="px-2 py-1 font-mono text-slate-600">{c.candidateLabel}</td>
+                                                  {c.factorScores.map(f => (
+                                                    <td key={f.factorId} className="text-right px-2 py-1 font-mono font-bold"
+                                                      style={{ color: `hsl(${Math.round(f.score * 120)}, 55%, 38%)` }}
+                                                    >
+                                                      {f.score.toFixed(2)}
+                                                    </td>
+                                                  ))}
+                                                  <td className={`text-right px-2 py-1 font-mono font-bold ${c.selected ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                    {c.totalScore.toFixed(2)}
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}

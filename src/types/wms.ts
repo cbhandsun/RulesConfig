@@ -1,6 +1,35 @@
 export type StrategyCategory = 'RECEIVING' | 'PUTAWAY' | 'ALLOCATION' | 'WAVE' | 'REPLENISHMENT';
 export type StrategyStatus = 'ACTIVE' | 'DRAFT';
 
+export type TriggerEventType =
+  | 'INVENTORY_CHANGE'
+  | 'ORDER_ARRIVED'
+  | 'EQUIPMENT_STATUS'
+  | 'WIP_THRESHOLD'
+  | 'TIME_SCHEDULE'
+  | 'MANUAL';
+
+export interface TriggerCondition {
+  id: string;
+  name: string;
+  enabled: boolean;
+  eventType: TriggerEventType;
+  subject: FactorTarget;
+  conditions: MatchingCondition[];
+  cooldownMs?: number; // 冷却时间，防止频繁触发
+}
+
+export interface TrafficSplitConfig {
+  enabled: boolean;
+  baselineStrategyId: string;
+  experimentStrategyId: string;
+  splitRatio: number; // 实验流量百分比 0-100
+  splitKey: 'ORDER_ID' | 'ZONE' | 'TIME_SLOT' | 'OPERATOR';
+  startTime?: string;
+  endTime?: string;
+  targetKpi?: string;
+}
+
 export interface Strategy {
   id: string;
   name: string;
@@ -11,7 +40,11 @@ export interface Strategy {
   version: string;
   status: StrategyStatus;
   priority: number;
+  triggerConditions?: TriggerCondition[];
+  trafficSplit?: TrafficSplitConfig;
 }
+
+export type ConditionType = 'INSTANT' | 'TIME_WINDOW' | 'AGGREGATE';
 
 export interface MatchingCondition {
   id: string;
@@ -19,6 +52,12 @@ export interface MatchingCondition {
   operator: string;
   value: string;
   logicalOperator?: 'AND' | 'OR';
+  conditionType?: ConditionType; // 默认 INSTANT
+  timeWindow?: {
+    duration: number;
+    unit: 'MINUTES' | 'HOURS' | 'DAYS';
+    aggregator: 'COUNT' | 'SUM' | 'AVG' | 'MAX' | 'MIN' | 'TREND_UP' | 'TREND_DOWN';
+  };
 }
 
 export type RuleStepType = 'FILTER' | 'SELECT' | 'TRANSFORM' | 'GATEWAY';
@@ -57,10 +96,26 @@ export interface RuleStep {
   action?: RuleStepAction;
   targetSubject?: FactorTarget; // 兼容旧模型，优先使用 input/outputSubject
   filters: MatchingCondition[];
-  sorters: { factorId: string; factorName: string; weight: number; direction: 'ASC' | 'DESC' }[];
+  sorters: {
+    factorId: string;
+    factorName: string;
+    weight: number;
+    direction: 'ASC' | 'DESC';
+    weightOverrides?: Array<{
+      id: string;
+      label: string;               // 覆盖规则描述，如"节假日旺季"
+      conditions: MatchingCondition[];
+      weight: number;              // 覆盖后的权重值
+    }>;
+  }[];
   failoverAction: 'NEXT_STEP' | 'ERROR_SUSPEND' | 'PIPELINE_NEXT' | 'SPLIT_NEW_WO';
   flowControl: 'TERMINATE' | 'CONTINUE'; // TERMINATE: 满足即跳出, CONTINUE: 继续流转至下一节点
   config?: Record<string, string | number | boolean>; // 节点特定的高级参数配置
+  executionConstraints?: {
+    maxCandidates?: number;      // 候选集上限，防止爆炸式扩散
+    timeoutMs?: number;          // 步骤超时，超时触发 failoverAction
+    maxOutputCount?: number;     // 最终输出数量上限
+  };
 }
 
 export type StrategyRuleType = 'DIMENSION' | 'GATE';
@@ -99,7 +154,7 @@ export type FactorTarget = 'CONTEXT' | 'LOCATION' | 'INVENTORY_LOT' | 'EQUIPMENT
 export type FactorImpactType = 'CONSTRAINT' | 'ADJUSTMENT' | 'BEHAVIORAL';
 export type AttributeValueType = 'string' | 'number' | 'boolean' | 'enum' | 'date' | 'datetime';
 export type ActionParamType = 'string' | 'number' | 'boolean' | 'select';
-export type ParamGroup = 'CONSTRAINT' | 'ADJUSTMENT' | 'BEHAVIORAL';
+export type ParamGroup = 'CONSTRAINT' | 'ADJUSTMENT' | 'BEHAVIORAL' | 'EXECUTION';
 
 export interface BusinessObjectMeta {
   code: FactorTarget;
@@ -173,6 +228,8 @@ export interface FactorNormalization {
   outputUnit?: string;
 }
 
+export type FactorType = 'STATIC' | 'DYNAMIC' | 'ML_SCORE';
+
 export interface Factor {
   id: string;
   name: string;
@@ -180,9 +237,23 @@ export interface Factor {
   description: string;
   category: 'PHYSICAL' | 'LOGICAL' | 'TEMPORAL' | 'EQUIPMENT' | 'COMPLIANCE'; // 因子分类
   impactType: FactorImpactType; // 业务影响类型：约束类(准入)、调节类(评分)、行为类(执行)
+  factorType?: FactorType; // 默认 STATIC
   logic?: {
     formula: string;    // 计算公式 (表达式)
     unit?: string;      // 结果单位
+  };
+  externalSource?: {
+    endpoint: string;        // mock URL，如 /api/factors/deadhead-score
+    method: 'GET' | 'POST';
+    inputFields: string[];   // 传入字段
+    outputField: string;     // 返回的得分字段
+    cacheTtlMs?: number;     // 结果缓存时长
+    fallbackValue?: number;  // 调用失败时的降级值
+  };
+  feedbackLoop?: {
+    enabled: boolean;
+    kpiMetric: string;       // 用于自动调整权重的 KPI
+    adjustmentInterval: 'DAILY' | 'WEEKLY';
   };
   attributeRefs?: string[];
   applicableActions?: RuleStepAction[];
