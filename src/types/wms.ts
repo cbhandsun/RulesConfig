@@ -97,6 +97,81 @@ export interface StrategyDetail extends Strategy {
 export type FactorTarget = 'CONTEXT' | 'LOCATION' | 'INVENTORY_LOT' | 'EQUIPMENT' | 'OPERATOR' | 'CARRIER' | 'ORDER_LINE' | 'STAGING_AREA';
 
 export type FactorImpactType = 'CONSTRAINT' | 'ADJUSTMENT' | 'BEHAVIORAL';
+export type AttributeValueType = 'string' | 'number' | 'boolean' | 'enum' | 'date' | 'datetime';
+export type ActionParamType = 'string' | 'number' | 'boolean' | 'select';
+export type ParamGroup = 'CONSTRAINT' | 'ADJUSTMENT' | 'BEHAVIORAL';
+
+export interface BusinessObjectMeta {
+  code: FactorTarget;
+  name: string;
+  description?: string;
+  category?: 'MASTER' | 'TRANSACTION' | 'RESOURCE' | 'RUNTIME';
+  icon?: string;
+  supportedActions?: RuleStepAction[];
+  businessMeaning?: string;
+  typicalRoleInStep?: string;
+  commonDecisions?: string[];
+  businessOwner?: string;
+  lifecycleStage?: 'PLANNED' | 'ACTIVE' | 'LEGACY';
+  sourceSystems?: string[];
+  coreAttributes?: string[];
+  primaryActions?: RuleStepAction[];
+  upstreamObjects?: FactorTarget[];
+  downstreamObjects?: FactorTarget[];
+  governanceNotes?: string[];
+}
+
+export interface BusinessAttributeMeta {
+  id: string;
+  objectCode: FactorTarget;
+  key: string;
+  name: string;
+  description?: string;
+  valueType: AttributeValueType;
+  operators?: string[];
+  enumOptions?: string[];
+  unit?: string;
+  searchable?: boolean;
+  filterable?: boolean;
+  sortable?: boolean;
+  decisionRole?: 'IDENTITY' | 'FILTER' | 'RANKING' | 'CONSTRAINT' | 'OUTPUT';
+  businessMeaning?: string;
+  exampleValues?: string[];
+}
+
+export interface ActionParamSchema {
+  key: string;
+  label: string;
+  description?: string;
+  valueType: ActionParamType;
+  required?: boolean;
+  defaultValue?: string | number | boolean;
+  options?: string[];
+  unit?: string;
+  placeholder?: string;
+  group?: ParamGroup;
+  appliesToInputSubjects?: FactorTarget[];
+  appliesToOutputSubjects?: FactorTarget[];
+}
+
+export interface ActionMeta {
+  code: RuleStepAction;
+  name: string;
+  description?: string;
+  supportedStepTypes?: RuleStepType[];
+  recommendedInputSubjects?: FactorTarget[];
+  recommendedOutputSubjects?: FactorTarget[];
+  params?: ActionParamSchema[];
+  executionMeaning?: string;
+  decisionGuidance?: string;
+  typicalOutputs?: string[];
+}
+
+export interface FactorNormalization {
+  method?: 'MIN_MAX_ASC' | 'MIN_MAX_DESC' | 'BOOLEAN' | 'ENUM_MAP' | 'CUSTOM';
+  range?: [number, number];
+  outputUnit?: string;
+}
 
 export interface Factor {
   id: string;
@@ -109,4 +184,12 @@ export interface Factor {
     formula: string;    // 计算公式 (表达式)
     unit?: string;      // 结果单位
   };
+  attributeRefs?: string[];
+  applicableActions?: RuleStepAction[];
+  applicableStepTypes?: RuleStepType[];
+  tags?: string[];
+  normalization?: FactorNormalization;
+  businessMeaning?: string;
+  decisionPurpose?: string;
+  interpretationHint?: string;
 }

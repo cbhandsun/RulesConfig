@@ -5,7 +5,7 @@ import { Button } from './ui';
 interface StrategyHelpProps {
   isOpen: boolean;
   onClose: () => void;
-  currentView: 'DASHBOARD' | 'EDITOR' | 'TEMPLATES' | 'LOGS' | 'FACTORS' | 'RULES';
+  currentView: 'DASHBOARD' | 'EDITOR' | 'TEMPLATES' | 'LOGS' | 'FACTORS' | 'RULES' | 'METADATA';
 }
 
 export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyHelpProps) {
@@ -302,34 +302,25 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-purple-600">
                 <Database className="w-5 h-5" />
-                <h4 className="text-[14px] font-black uppercase tracking-wider">计算因子：核心度量</h4>
+                <h4 className="text-[14px] font-black uppercase tracking-wider">因子工作台的定位</h4>
               </div>
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                因子是算法编排的最小原子，分为三个核心维度：
+                因子工作台是元数据治理下的专业子域视图，用于维护因子公式、归一化方式、适用对象与动作约束。它编辑的是同一份因子主数据，不应被理解为另一套独立资产库。
               </p>
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 bg-fuchsia-50 rounded-xl border border-fuchsia-100">
-                  <span className="text-[12px] font-bold text-fuchsia-700">物理属性 (PHYSICAL)</span>
-                  <span className="text-[10px] text-fuchsia-400">长/宽/高/温层</span>
+                  <span className="text-[12px] font-bold text-fuchsia-700">治理对象</span>
+                  <span className="text-[10px] text-fuchsia-400">公式 / 归一化 / 适用范围</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100">
-                  <span className="text-[12px] font-bold text-blue-700">逻辑属性 (LOGICAL)</span>
-                  <span className="text-[10px] text-blue-400">周转率/ABC分类/动线顺序</span>
+                  <span className="text-[12px] font-bold text-blue-700">引用去向</span>
+                  <span className="text-[10px] text-blue-400">规则库 / 模板库 / 策略实例</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-orange-50 rounded-xl border border-orange-100">
-                  <span className="text-[12px] font-bold text-orange-700">动态公式 (DYNAMIC)</span>
-                  <span className="text-[10px] text-orange-400">实时库存水位/设备负载</span>
+                  <span className="text-[12px] font-bold text-orange-700">边界约束</span>
+                  <span className="text-[10px] text-orange-400">不负责完整规则编排</span>
                 </div>
               </div>
-            </section>
-            <section className="space-y-4">
-              <div className="flex items-center gap-2 text-slate-700">
-                <Zap className="w-5 h-5" />
-                <h4 className="text-[14px] font-black uppercase tracking-wider">绑定对象约束</h4>
-              </div>
-              <p className="text-[12px] text-slate-500 leading-relaxed">
-                每个因子必须绑定一个 <b>Target Object</b>（如库位、库存、AGV）。在编排策略时，系统会自动过滤不兼容的因子。
-              </p>
             </section>
           </>
         );
@@ -339,19 +330,44 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-indigo-600">
                 <LayoutGrid className="w-5 h-5" />
-                <h4 className="text-[14px] font-black uppercase tracking-wider">行业最佳实践模板</h4>
+                <h4 className="text-[14px] font-black uppercase tracking-wider">场景模板库的定位</h4>
               </div>
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                模板库沉淀了医药 GSP、冷链物流、电商大促等典型业务场景的 <b>标准逻辑蓝图</b>。
+                模板库沉淀的是场景方案与最佳实践，回答的是“面对某类业务场景，推荐如何装配规则”。模板不是基础元数据，也不是公共规则主定义，而是从方案到实例的启动器。
               </p>
               <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-3">
                 <div className="flex items-start gap-3">
                    <Share2 className="w-4 h-4 text-indigo-600 mt-0.5" />
-                   <p className="text-[11px] text-indigo-700 font-medium"><b>克隆模式</b>：快速生成私有策略，并根据自身仓库布局进行微调参数。</p>
+                   <p className="text-[11px] text-indigo-700 font-medium"><b>模板 -&gt; 实例：</b> 使用模板会创建新的策略实例，后续调整在实例编辑器中完成。</p>
                 </div>
                 <div className="flex items-start gap-3">
                    <ClipboardList className="w-4 h-4 text-indigo-600 mt-0.5" />
-                   <p className="text-[11px] text-indigo-700 font-medium"><b>参数预设</b>：模板自带了专家级的过滤器阈值，大大缩短了冷启动时间。</p>
+                   <p className="text-[11px] text-indigo-700 font-medium"><b>方案而非资产：</b> 模板优先引用公共规则与因子，而不应膨胀为另一套规则库。</p>
+                </div>
+              </div>
+            </section>
+          </>
+        );
+      case 'METADATA':
+        return (
+          <>
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 text-blue-600">
+                <Database className="w-5 h-5" />
+                <h4 className="text-[14px] font-black uppercase tracking-wider">元数据治理的定位</h4>
+              </div>
+              <p className="text-[13px] text-slate-600 leading-relaxed">
+                元数据治理是 RulesConfig 的语义底座与治理中心，负责对象、属性、动作、因子以及覆盖分析。上层模块都应引用这一层，而不是复制或重定义底层业务资产。
+              </p>
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[12px] text-slate-600">
+                  <b className="text-slate-800">主真相范围：</b> 业务对象、属性、动作、因子。
+                </div>
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-[12px] text-blue-700">
+                  <b className="text-blue-800">运行时推导：</b> Step 模式、业务决策、覆盖度分析应尽量从真实规则结构推导。
+                </div>
+                <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-[12px] text-amber-700">
+                  <b className="text-amber-800">需要避免：</b> 让治理台演变成与规则运行事实平行的第二套配置真相。
                 </div>
               </div>
             </section>
@@ -364,12 +380,13 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
 
   const getViewTitle = () => {
     switch (currentView) {
-      case 'DASHBOARD': return '业务策略管理逻辑';
-      case 'EDITOR': return '策略编排与控制';
-      case 'RULES': return '业务序列降级模式与优先级';
-      case 'FACTORS': return '算法因子度量体系';
-      case 'TEMPLATES': return '行业模板应用指南';
-      default: return '策略系统操作指南';
+      case 'DASHBOARD': return '策略实例中心说明';
+      case 'EDITOR': return '策略实例编辑说明';
+      case 'RULES': return '全局规则资产说明';
+      case 'FACTORS': return '因子工作台说明';
+      case 'TEMPLATES': return '场景模板库说明';
+      case 'METADATA': return '元数据治理说明';
+      default: return 'RulesConfig 平台说明';
     }
   };
 
@@ -384,7 +401,7 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
             </div>
             <div>
               <h3 className="text-[16px] font-bold leading-none">{getViewTitle()}</h3>
-              <p className="text-[10px] text-white/50 mt-1.5 uppercase font-black tracking-widest">Logic Guide - {currentView}</p>
+              <p className="text-[10px] text-white/50 mt-1.5 uppercase font-black tracking-widest">Platform Guide - {currentView}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">

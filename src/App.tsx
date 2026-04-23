@@ -17,6 +17,7 @@ import Editor from './pages/Editor';
 import Simulator from './pages/Simulator';
 import TemplateLibrary from './pages/TemplateLibrary';
 import FactorManager from './pages/FactorManager';
+import MetadataCenter from './pages/MetadataCenter';
 import RuleLibrary from './pages/RuleLibrary';
 import { Button } from './components/ui';
 import StrategyHelp from './components/StrategyHelp';
@@ -66,7 +67,15 @@ const useToast = () => {
 function App() {
   const [strategies, setStrategies] = useState<StrategyDetail[]>(mockStrategies);
   const [independentRules, setIndependentRules] = useState<StrategyRule[]>(mockIndependentRules);
-  const [currentView, setCurrentView] = useState<'DASHBOARD' | 'EDITOR' | 'TEMPLATES' | 'LOGS' | 'FACTORS' | 'RULES'>('DASHBOARD');
+  const [currentView, setCurrentView] = useState<'DASHBOARD' | 'EDITOR' | 'TEMPLATES' | 'LOGS' | 'FACTORS' | 'RULES' | 'METADATA'>('DASHBOARD');
+
+  const navItems = [
+    { key: 'DASHBOARD', label: '策略实例中心', description: '实例层 · 总览与编辑入口', active: currentView === 'DASHBOARD' || currentView === 'EDITOR' },
+    { key: 'RULES', label: '全局规则库', description: '规则资产层 · 公共规则组件', active: currentView === 'RULES' },
+    { key: 'METADATA', label: '元数据治理', description: '语义底座层 · 对象/属性/动作/因子', active: currentView === 'METADATA' },
+    { key: 'FACTORS', label: '因子工作台', description: '元数据子域 · 同源因子主数据', active: currentView === 'FACTORS' },
+    { key: 'TEMPLATES', label: '场景模板库', description: '场景方案层 · 模板创建实例', active: currentView === 'TEMPLATES' },
+  ] as const;
   const [activeStrategyId, setActiveStrategyId] = useState<string | null>(null);
   
   const [simulatorStrategyId, setSimulatorStrategyId] = useState<string | null>(null);
@@ -144,7 +153,7 @@ function App() {
 
   const handleSaveStrategy = (updatedStrategy: StrategyDetail) => {
     setStrategies((prev: StrategyDetail[]) => prev.map((s: StrategyDetail) => s.id === updatedStrategy.id ? updatedStrategy : s));
-    showToast('策略配置已持久化保存');
+    showToast('策略实例已保存');
   };
 
   const activeStrategy = strategies.find(s => s.id === activeStrategyId) || null;
@@ -155,51 +164,27 @@ function App() {
       {/* Top Navbar */}
       <nav className="bg-theme-ink text-white h-[60px] flex items-center px-6 shrink-0 relative z-20 border-b border-white/10 justify-between">
         <div className="flex items-center">
-          <h1 className="text-[18px] font-medium tracking-tight m-0">WMS 智能调度中心</h1>
-          <span className="text-[12px] opacity-60 ml-3 font-mono">ID: WMS-SYS-01 / (Active)</span>
+          <div className="flex flex-col">
+            <h1 className="text-[18px] font-medium tracking-tight m-0">RulesConfig 规则平台</h1>
+            <span className="text-[11px] opacity-60 font-medium">语义底座、规则资产、场景方案、策略实例、仿真验证</span>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setCurrentView('DASHBOARD')}
-            className={`px-4 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors ${
-               (currentView === 'DASHBOARD' || currentView === 'EDITOR') 
-                 ? 'bg-white/20 text-white' 
-                 : 'bg-transparent text-white/70 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            策略配置管理
-          </button>
-          <button 
-            onClick={() => setCurrentView('RULES')}
-            className={`px-4 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors ${
-               currentView === 'RULES' 
-                 ? 'bg-white/20 text-white' 
-                 : 'bg-transparent text-white/70 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            全局规则库
-          </button>
-          <button 
-            onClick={() => setCurrentView('FACTORS')}
-            className={`px-4 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors ${
-               currentView === 'FACTORS' 
-                 ? 'bg-white/20 text-white' 
-                 : 'bg-transparent text-white/70 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            算法因子集
-          </button>
-          <button 
-            onClick={() => setCurrentView('TEMPLATES')}
-            className={`px-4 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors ${
-               currentView === 'TEMPLATES' 
-                 ? 'bg-white/20 text-white' 
-                 : 'bg-transparent text-white/70 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            规则模板库
-          </button>
-          
+        <div className="flex gap-2 items-center">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setCurrentView(item.key)}
+              title={item.description}
+              className={`px-4 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors ${
+                item.active
+                  ? 'bg-white/20 text-white'
+                  : 'bg-transparent text-white/70 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+
           <div className="w-px h-6 bg-white/10 mx-2"></div>
           
           <button 
@@ -242,6 +227,9 @@ function App() {
         {currentView === 'FACTORS' && (
           <FactorManager onOpenHelp={() => setIsHelpOpen(true)} />
         )}
+        {currentView === 'METADATA' && (
+          <MetadataCenter strategies={strategies} onOpenHelp={() => setIsHelpOpen(true)} />
+        )}
         {currentView === 'RULES' && (
           <RuleLibrary 
             strategies={strategies} 
@@ -272,12 +260,12 @@ function App() {
       <Modal 
         isOpen={isCreateModalOpen} 
         onClose={() => setIsCreateModalOpen(false)} 
-        title="新建核心业务策略"
+        title="新建策略实例"
       >
         <div className="space-y-4">
-          <p className="text-[12px] text-theme-muted">创建后您将进入编辑器，拖拽左侧候选算法因子来编排执行流水线。</p>
+          <p className="text-[12px] text-theme-muted">创建后您将进入策略实例编辑器，在实例层装配公共规则、私有规则和参数化配置。</p>
           <div>
-            <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-1.5">策略描述性名称</label>
+            <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-1.5">策略实例名称</label>
             <input 
               autoFocus
               className="w-full h-10 px-3 rounded-[6px] border border-theme-border focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all text-sm bg-theme-bg"
@@ -289,7 +277,7 @@ function App() {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={() => setIsCreateModalOpen(false)}>取消</Button>
-            <Button variant="primary" onClick={confirmCreate}>确认并进入编辑</Button>
+            <Button variant="primary" onClick={confirmCreate}>确认并进入实例编辑器</Button>
           </div>
         </div>
       </Modal>

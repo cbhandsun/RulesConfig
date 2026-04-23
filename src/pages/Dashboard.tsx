@@ -50,18 +50,18 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
     <div className="flex-1 p-6 flex flex-col gap-6 w-full max-w-[1024px] mx-auto overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[18px] font-medium text-theme-ink tracking-tight m-0">策略组合管理: 场景 / 规则 / 语义步骤</h1>
-          <p className="text-[12px] text-theme-muted mt-1">从管理视角统一查看业务场景、规则阶段、以及步骤级输入输出迁移与动作语义。</p>
+          <h1 className="text-[18px] font-medium text-theme-ink tracking-tight m-0">策略实例中心</h1>
+          <p className="text-[12px] text-theme-muted mt-1">实例层总览：查看当前生效与草稿策略实例，并从这里进入编辑或仿真验证。</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
             onClick={onOpenHelp}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors"
           >
-            <BookOpen className="w-3.5 h-3.5" /> 逻辑实现说明
+            <BookOpen className="w-3.5 h-3.5" /> 实例层说明
           </button>
           <Button onClick={onCreate} className="gap-2">
-            <Plus className="w-4 h-4" /> 新建策略
+            <Plus className="w-4 h-4" /> 新建策略实例
           </Button>
         </div>
       </div>
@@ -74,11 +74,11 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
              <Info className="w-5 h-5 text-blue-400" />
            </div>
            <div>
-               <h3 className="text-[14px] font-bold tracking-wide uppercase opacity-90">统一决策模型：策略 → 规则 → 语义步骤</h3>
+               <h3 className="text-[14px] font-bold tracking-wide uppercase opacity-90">实例层视角：策略实例汇聚公共规则、私有规则与执行步骤</h3>
                <p className="text-[12px] text-white/60 mt-2 leading-relaxed max-w-[800px]">
-                 管理面与执行面围绕同一套编排机制组织：<b>策略</b>定义业务场景边界，<b>规则</b>定义阶段与分流，<b>步骤</b>定义输入主体、输出主体、步骤类型与动作语义。
+                 这里展示的是当前仓、货主或业务场景实际生效的策略实例。实例会引用元数据治理提供的语义底座，也可以装配公共规则或从场景模板克隆生成。
                  <span className="mx-2 opacity-30">|</span>
-                 这样 Dashboard 看到的不再只是“策略清单”，而是整套可执行决策网络的管理总览。
+                 从这里进入编辑器后，您编辑的是实例层配置；进入仿真验证后，您验证的是实例层上线效果。
                </p>
            </div>
         </div>
@@ -228,10 +228,10 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
                   <td className="px-4 py-4 flex flex-col items-end gap-2">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" className="!h-8 px-3 gap-2 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100" onClick={() => onEdit(strategy.id)}>
-                        <Edit2 className="w-3.5 h-3.5" /> 编排规则
+                        <Edit2 className="w-3.5 h-3.5" /> 编辑实例
                       </Button>
                       <Button variant="accent" className="!h-8 px-3 gap-2" onClick={() => onSimulate(strategy.id)}>
-                        <Play className="w-3.5 h-3.5" /> 仿真
+                        <Play className="w-3.5 h-3.5" /> 仿真验证
                       </Button>
                     </div>
                   </td>

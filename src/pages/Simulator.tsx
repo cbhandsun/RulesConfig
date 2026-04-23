@@ -219,7 +219,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
         <div className="flex items-center justify-between px-6 py-4 border-b border-theme-border bg-[#F8F9FA]">
           <div className="flex items-center gap-3">
             <h2 className="text-[16px] font-semibold text-theme-ink flex items-center gap-2 m-0">
-              仿真中心: {strategy.name}
+              仿真验证中心: {strategy.name}
             </h2>
             <Badge variant="neutral">{strategy.primarySubject}</Badge>
             <span className="text-[11px] text-theme-muted opacity-60">| {strategy.id}</span>
@@ -255,7 +255,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
 
             <div className="mb-6 p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex flex-col gap-2">
                <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5">
-                  <BookOpen className="w-3 h-3" /> 策略业务蓝图
+                  <BookOpen className="w-3 h-3" /> 验证层说明
                </h4>
                <p className="text-[11px] text-slate-600 leading-relaxed font-medium line-clamp-4">
                   {strategy.scenario?.split('\n\n')[0] || '全局通用场景'}
@@ -304,7 +304,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                 <>
                    <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 mb-4">
                       <p className="text-[10px] text-purple-700 leading-tight">
-                         <b>策略仿真沙盒 (Simulation Sandbox):</b> 系统将自动抓取生产环境目前的“生产策略”作为 Baseline，与您当前正在编辑的策略进行全量 KPI 模拟对比。
+                         <b>验证层职责：</b> 仿真验证负责对当前策略实例进行回放、对比和上线前校验。这里评估的是实例层配置能否安全上线，而不是在这里编辑资产本体。
                       </p>
                    </div>
                    <div>
@@ -465,15 +465,15 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                       <div className="max-w-lg">
                          <div className="flex items-center gap-2 mb-3">
                             <PlayCircle className="w-5 h-5 text-purple-200 animate-pulse" />
-                            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200">One-Click Grayscale Rolling</span>
+                            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200">Validation Release Recommendation</span>
                          </div>
-                         <h4 className="text-[20px] font-black tracking-tight mb-2">一键开启 5% 灰度测试 (Canary Rollout)</h4>
+                         <h4 className="text-[20px] font-black tracking-tight mb-2">一键生成验证发布建议 (Canary Rollout)</h4>
                          <p className="text-[12px] text-purple-100 leading-relaxed opacity-90">
-                            仿真沙盒结果显示，新策略在不影响现有稳定性的前提下，全天候路径损耗降低了 12%。点击下方按钮将自动生成一份灰度测试流程，并在生产集群中以仿真模式并发运行 24h 观察。
+                            仿真验证结果显示，新策略实例在不影响现有稳定性的前提下，全天候路径损耗降低了 12%。点击下方按钮将自动生成一份验证发布建议，供您作为进入生产灰度发布前的参考。
                          </p>
                       </div>
                       <button className="px-8 py-4 bg-white text-purple-700 font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all text-[14px] flex items-center gap-2">
-                         立即执行影子灰度 <Settings2 className="w-4 h-4" />
+                         生成验证发布建议 <Settings2 className="w-4 h-4" />
                       </button>
                    </div>
                    <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none translate-x-10 translate-y-10">
@@ -565,10 +565,10 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                    <div>
                       <h5 className="text-[13px] font-bold text-blue-900 mb-1">AI 优化结论报告</h5>
                       <p className="text-[11px] text-blue-700 leading-relaxed">
-                        通过此次 1k 规模的回测，新策略在 <span className="font-bold">生鲜变质减损</span> 和 <span className="font-bold">门店分拣路径</span> 表现出显著优势。特别是在第 500-800 笔订单高峰期，新增加的 <i>“陈列动线顺位”</i> 因子成功将门店上架效率提升了 28%。建议立即在生产环境开启 5% 的灰度测试。
+                        通过此次 1k 规模的回测，新策略实例在 <span className="font-bold">生鲜变质减损</span> 和 <span className="font-bold">门店分拣路径</span> 表现出显著优势。特别是在第 500-800 笔订单高峰期，新增的 <i>“陈列动线顺位”</i> 因子成功将门店上架效率提升了 28%。建议将本次结果作为进入灰度发布评审的依据。
                       </p>
                       <button className="mt-3 px-4 py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
-                         采纳优化建议并部署 (Deployment)
+                         采纳验证建议并进入发布评审
                       </button>
                    </div>
                 </div>
@@ -587,9 +587,9 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                    <div className="flex-1 relative z-10">
                       <h4 className="text-[12px] font-bold tracking-wider uppercase opacity-80">Logic Guard AI Insights</h4>
                       <p className="text-[13px] text-white/90 mt-1 leading-relaxed">
-                        {simResult.guardrailResults.some(g => g.matched && g.type === 'BLOCK') 
+                        {simResult.guardrailResults.some(g => g.matched && g.type === 'BLOCK')
                           ? `检测到业务红线冲突：[${simResult.guardrailResults.find(g => g.matched && g.type === 'BLOCK')?.name}] 已触发强制拦截。生鲜临期拦截生效，已保护订单质量。`
-                          : `当前策略配置在零售环境下运行平稳。建议在 Step 1 增加 "温区匹配度" 权重以确保冷链完整性。`}
+                          : `当前策略实例在零售环境下运行平稳。建议在 Step 1 增加 "温区匹配度" 权重以确保冷链完整性。`}
                       </p>
                    </div>
                 </div>

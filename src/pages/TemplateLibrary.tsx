@@ -695,35 +695,35 @@ export default function TemplateLibrary({ onUseTemplate, onOpenHelp }: TemplateL
       <div className="w-full max-w-5xl">
         <header className="mb-8 flex items-end justify-between">
           <div>
-            <h1 className="text-2xl font-semibold mb-2">行业标杆规则模板库</h1>
+            <h1 className="text-2xl font-semibold mb-2">场景模板库</h1>
             <p className="text-theme-muted text-[13px] max-w-2xl leading-relaxed">
-              基于先进的一盘货(Omnichannel)、自动化冷链、智能波次算法沉淀的开箱即用行业级 WMS 策略配置。您可以直接克隆下方的经典商业最佳实践应用到您自营的仓网中去。
+              沉淀行业场景方案与最佳实践组合，用于快速创建策略实例。模板表达的是“如何组合规则与参数”，不是基础元数据或公共规则的另一份主定义。
             </p>
           </div>
           <button 
             onClick={onOpenHelp}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors shrink-0"
           >
-            <BookOpen className="w-3.5 h-3.5" /> 模板逻辑套件说明
+            <BookOpen className="w-3.5 h-3.5" /> 模板使用说明
           </button>
         </header>
 
-        {/* Global Template Logic Guide */}
+        {/* Template Positioning Guide */}
         <div className="mb-8 p-5 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl text-white flex items-start gap-4 shadow-xl border border-white/5 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-xl"></div>
           <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
             <LayoutGrid className="w-5 h-5 text-indigo-400" />
           </div>
           <div className="flex-1 relative z-10">
-            <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">模板设计规范：行业蓝图与参数化克隆</h4>
+            <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">方案模板定位：复用组合方案，创建新的策略实例</h4>
             <div className="grid grid-cols-2 gap-8 mt-3">
               <div className="text-[12px] text-white/60 leading-relaxed">
-                <b className="text-white/80 block mb-1 underline decoration-indigo-500/50 underline-offset-4">基于蓝图的快速部署</b>
-                模板由资深行业解决方案专家设计，内置了符合医药 GSP、生鲜冷流等规范的 <b>专家级因子组合</b>，确保基础逻辑零误差。
+                <b className="text-white/80 block mb-1 underline decoration-indigo-500/50 underline-offset-4">模板沉淀的是场景方案，不是底层资产</b>
+                模板负责沉淀行业经验、适用前提和推荐组合方式，优先复用公共规则与因子，而不是演变成另一套独立规则库或元数据库。
               </div>
               <div className="text-[12px] text-white/60 leading-relaxed">
-                <b className="text-white/80 block mb-1 underline decoration-indigo-500/50 underline-offset-4">参数热重载与隔离</b>
-                点击“应用”后，对应逻辑会完整拷贝至您的私有空间。您可以独立修改其中的 <b>阈值细节</b> 而不影响全局基准模板。
+                <b className="text-white/80 block mb-1 underline decoration-indigo-500/50 underline-offset-4">套用模板后进入实例层继续落地</b>
+                点击“使用模板”后会创建一个新的策略实例，后续调整发生在实例编辑器中；模板本体继续作为方案蓝图保留在模板库里。
               </div>
             </div>
           </div>
@@ -768,7 +768,7 @@ export default function TemplateLibrary({ onUseTemplate, onOpenHelp }: TemplateL
                      className="w-full justify-center group-hover:bg-theme-ink group-hover:text-white group-hover:border-theme-ink transition-colors"
                      onClick={() => onUseTemplate(tpl.preset)}
                   >
-                     套用该架构并开始定制
+                     使用模板创建策略实例
                   </Button>
                 </div>
               </div>

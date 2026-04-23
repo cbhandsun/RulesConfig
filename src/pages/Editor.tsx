@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, RadarChart, ResponsiveContainer } from 'recharts';
-import { StrategyDetail, RuleStep, Factor, StrategyRule, FactorTarget, RuleStepAction, RuleStepType, StepInputBinding } from '../types/wms';
+import { StrategyDetail, RuleStep, Factor, StrategyRule, FactorTarget, RuleStepAction, RuleStepType, StepInputBinding, ActionParamSchema } from '../types/wms';
 import { mockFactors } from '../data/mock';
+import { getActionMeta, getActionParams, getAttributesByObject, getObjectMeta, subjectOptions } from '../data/metadata';
 import { Button, Card, Badge, Input } from '../components/ui';
 import { createDefaultStep, getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction, getEffectiveStepType } from '../utils/stepSemantics';
 import { ArrowLeft, ArrowRight, Save, Play, Plus, X, ArrowDown, ChevronRight, Settings, PlusCircle, Search, ChevronDown, GitBranch, GitMerge, HelpCircle, BookOpen, Layers, Zap, Code, Filter, Info, LayoutGrid, Sparkles, Activity, ShieldCheck, ShieldAlert, Box, Workflow, AlertCircle, Link as LinkIcon, ArrowDownRight, Scale } from 'lucide-react';
@@ -59,6 +60,26 @@ type AvailableParam = {
   unit?: string;
   placeholder?: string;
   options?: string[];
+};
+
+const defaultFilterOperators = ['==', '!=', '>', '>=', '<', '<=', 'IN'];
+
+const toAvailableParam = (param: ActionParamSchema): AvailableParam => ({
+  key: param.key,
+  label: param.label,
+  type: param.valueType,
+  group: param.group ?? 'ADJUSTMENT',
+  description: param.description,
+  unit: param.unit,
+  placeholder: param.placeholder,
+  options: param.options,
+});
+
+const getFilterFieldKey = (field: string) => field.includes('.') ? field.split('.').slice(1).join('.') : field;
+
+const getFilterMeta = (subject: FactorTarget, field: string) => {
+  const fieldKey = getFilterFieldKey(field);
+  return getAttributesByObject(subject).find(attribute => attribute.key === fieldKey || attribute.id === field || attribute.name === field);
 };
 
 const BusinessInsight = ({ rule }: { rule: StrategyRule }) => {
@@ -820,16 +841,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
   const effectiveAction = focusedStep ? getEffectiveStepAction(focusedStep) : 'VALIDATE';
 
   const getSubjectLabel = (subject: FactorTarget) => {
-    switch(subject) {
-      case 'LOCATION': return '🏬 库位';
-      case 'INVENTORY_LOT': return '📦 库存';
-      case 'ORDER_LINE': return '📑 单据';
-      case 'EQUIPMENT': return '🤖 设备';
-      case 'OPERATOR': return '👤 班次';
-      case 'CARRIER': return '🚢 载具';
-      case 'STAGING_AREA': return '🏢 集货';
-      default: return '⚙️ 环境';
-    }
+    const meta = getObjectMeta(subject);
+    return meta ? `${meta.icon ? `${meta.icon} ` : ''}${meta.name}` : '⚙️ 环境';
   };
 
   const stepTypeDescriptions: Record<RuleStepType, string> = {
@@ -954,12 +967,16 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
   };
 
   const stepIntentName = getStepIntentLabel(effectiveAction, effectiveInputSubject, effectiveOutputSubject);
-  
-  // Group factors by targetObject
+  const focusedActionMeta = getActionMeta(effectiveAction);
+  const focusedAttributes = getAttributesByObject(effectiveInputSubject);
+
   const factorGroups = mockFactors
-    .filter(f => 
-      f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (f.description && f.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(f =>
+      (f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (f.description && f.description.toLowerCase().includes(searchQuery.toLowerCase())))
+      && (!focusedStep || f.targetObject === effectiveInputSubject || !f.applicableActions?.length)
+      && (!focusedStep || !f.applicableActions?.length || f.applicableActions.includes(effectiveAction))
+      && (!focusedStep || !f.applicableStepTypes?.length || f.applicableStepTypes.includes(getEffectiveStepType(focusedStep)))
     )
     .sort((a, b) => {
        // Primary sorting by focused step subject
@@ -986,9 +1003,12 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
           <Button variant="ghost" onClick={onBack} className="p-2 h-auto text-theme-muted">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div className="flex items-baseline">
-            <h1 className="text-[18px] font-medium m-0 tracking-tight">策略配置：{data.name}</h1>
-            <span className="text-[12px] opacity-60 ml-3 font-mono">ID: {data.id} / {data.version} ({data.status})</span>
+          <div className="flex flex-col">
+            <div className="flex items-baseline">
+              <h1 className="text-[18px] font-medium m-0 tracking-tight">策略实例编辑器：{data.name}</h1>
+              <span className="text-[12px] opacity-60 ml-3 font-mono">ID: {data.id} / {data.version} ({data.status})</span>
+            </div>
+            <span className="text-[11px] text-theme-muted">实例层 · 装配公共规则、私有规则、Guardrail 与参数化配置</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -999,7 +1019,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
           >
             <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full animate-pulse border border-white"></div>
             <HelpCircle className="w-4 h-4" />
-            <span className="text-[13px] font-bold">配置架构指南</span>
+            <span className="text-[13px] font-bold">实例装配指南</span>
           </Button>
 
           <Button 
@@ -1008,17 +1028,17 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
             onClick={() => setIsPayloadModalOpen(true)}
           >
             <Code className="w-4 h-4" />
-            <span className="text-[13px] font-medium">查看报文实体</span>
+            <span className="text-[13px] font-medium">查看实例报文</span>
           </Button>
           
           <div className="h-6 w-px bg-theme-border mx-1"></div>
-          <Button variant="secondary" className="bg-black/5 text-theme-ink hover:bg-black/10">历史版本</Button>
-          <Button variant="outline" className="gap-2"><Settings className="w-4 h-4" /> 策略属性</Button>
+          <Button variant="secondary" className="bg-black/5 text-theme-ink hover:bg-black/10">实例版本</Button>
+          <Button variant="outline" className="gap-2"><Settings className="w-4 h-4" /> 实例属性</Button>
           <Button variant="accent" className="gap-2" onClick={() => onSimulate(data!.id, activeRuleId || undefined)}>
-            <Play className="w-3.5 h-3.5 fill-current" /> 仿真模拟
+            <Play className="w-3.5 h-3.5 fill-current" /> 仿真验证
           </Button>
           <Button variant="primary" className="gap-2" onClick={handleSave}>
-            保存并发布
+            保存实例
           </Button>
         </div>
       </header>
@@ -2143,6 +2163,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     const stepOutputSubject = getEffectiveOutputSubject(step, data.primarySubject);
                     const stepAction = getEffectiveStepAction(step);
                     const stepType = getEffectiveStepType(step);
+                    const stepAttributes = getAttributesByObject(stepInputSubject);
                     const stepIntent = getStepIntentLabel(stepAction, stepInputSubject, stepOutputSubject);
                     const isSubjectFocused = activeDragOrHoverFactor?.targetObject === stepInputSubject;
                     const detailPresentation = getStepDetailPresentation(stepType);
@@ -2211,14 +2232,9 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                           handleUpdateStepSemantics(step.id, { inputSubject: e.target.value as FactorTarget });
                                         }}
                                       >
-                                        <option value="LOCATION">LOCATION (库位对象)</option>
-                                        <option value="INVENTORY_LOT">INVENTORY_LOT (库存批次)</option>
-                                        <option value="ORDER_LINE">ORDER_LINE (单据细项)</option>
-                                        <option value="EQUIPMENT">EQUIPMENT (物理设备)</option>
-                                        <option value="OPERATOR">OPERATOR (人员/班次)</option>
-                                        <option value="CARRIER">CARRIER (装箱载具)</option>
-                                        <option value="STAGING_AREA">STAGING_AREA (发货集货区)</option>
-                                        <option value="CONTEXT">CONTEXT (运行上下文)</option>
+                                        {subjectOptions.map(option => (
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
                                       </select>
                                       <ChevronDown className="w-3 h-3 text-slate-400 group-hover/subj:text-blue-500 transition-colors shrink-0" />
                                     </div>
@@ -2236,14 +2252,9 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                           handleUpdateStepSemantics(step.id, { outputSubject: e.target.value as FactorTarget });
                                         }}
                                       >
-                                        <option value="LOCATION">LOCATION (库位对象)</option>
-                                        <option value="INVENTORY_LOT">INVENTORY_LOT (库存批次)</option>
-                                        <option value="ORDER_LINE">ORDER_LINE (单据细项)</option>
-                                        <option value="EQUIPMENT">EQUIPMENT (物理设备)</option>
-                                        <option value="OPERATOR">OPERATOR (人员/班次)</option>
-                                        <option value="CARRIER">CARRIER (装箱载具)</option>
-                                        <option value="STAGING_AREA">STAGING_AREA (发货集货区)</option>
-                                        <option value="CONTEXT">CONTEXT (运行上下文)</option>
+                                        {subjectOptions.map(option => (
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
                                       </select>
                                       <ChevronDown className="w-3 h-3 text-blue-400 group-hover/out:text-blue-600 transition-colors shrink-0" />
                                     </div>
@@ -2557,22 +2568,37 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                     </button>
                                   </div>
                                   <div className="flex flex-wrap gap-4">
-                                    {stepFilters.map((filter: RuleStep['filters'][number]) => (
+                                    {stepFilters.map((filter: RuleStep['filters'][number]) => {
+                                      const filterMeta = getFilterMeta(stepInputSubject, filter.field);
+                                      const filterOperators = filterMeta?.operators?.length ? filterMeta.operators : defaultFilterOperators;
+                                      const hasEnumOptions = Boolean(filterMeta?.enumOptions?.length);
+                                      const fieldDisplay = filterMeta?.name ?? filter.field;
+                                      const isNumericField = filterMeta?.valueType === 'number' || filter.field.includes('数量');
+
+                                      return (
                                       <div key={filter.id} className="group/f flex items-center h-12 bg-white border border-slate-200 rounded-[14px] p-1 shadow-sm hover:shadow-lg hover:border-blue-400 transition-all animate-in zoom-in-95 duration-200">
-                                        <div className={`h-full px-4 flex items-center ${filter.field.includes('数量') ? 'bg-red-50 text-red-700' : 'bg-[#F9FAFB]'} rounded-l-[11px] border-r border-slate-100 min-w-[100px] max-w-[160px]`}>
+                                        <div className={`h-full px-4 flex items-center ${isNumericField ? 'bg-red-50 text-red-700' : 'bg-[#F9FAFB]'} rounded-l-[11px] border-r border-slate-100 min-w-[100px] max-w-[160px]`}>
                                           <div className="relative flex items-center w-full">
-                                            {filter.field.includes('数量') && (
+                                            {isNumericField && (
                                               <div className="absolute -top-6 left-0 whitespace-nowrap bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black animate-pulse shadow-sm">
                                                 QTY_STRICT
                                               </div>
                                             )}
-                                            {filter.field.includes('数量') && <Scale className="w-3.5 h-3.5 mr-2 text-red-500" />}
-                                            <input
-                                              className="w-full bg-transparent text-[13px] font-black placeholder:text-slate-300 focus:outline-none"
-                                              value={filter.field}
-                                              onChange={(e) => handleUpdateFilter(step.id, filter.id, e.target.value, filter.operator, filter.value)}
-                                              placeholder="过滤字段"
-                                            />
+                                            {isNumericField && <Scale className="w-3.5 h-3.5 mr-2 text-red-500" />}
+                                            <select
+                                              className="w-full bg-transparent text-[13px] font-black focus:outline-none appearance-none pr-4"
+                                              value={filterMeta?.id ?? filter.field}
+                                              onChange={(e) => {
+                                                const nextMeta = stepAttributes.find(attribute => attribute.id === e.target.value);
+                                                handleUpdateFilter(step.id, filter.id, nextMeta?.id ?? e.target.value, nextMeta?.operators?.[0] ?? filterOperators[0], '');
+                                              }}
+                                            >
+                                              {!filterMeta && <option value={filter.field}>{filter.field || '过滤字段'}</option>}
+                                              {stepAttributes.map(attribute => (
+                                                <option key={attribute.id} value={attribute.id}>{attribute.name}</option>
+                                              ))}
+                                            </select>
+                                            <ChevronDown className="w-3 h-3 absolute right-0 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
                                           </div>
                                         </div>
                                         <div className="relative px-3 h-full flex items-center">
@@ -2581,30 +2607,33 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                             value={filter.operator}
                                             onChange={(e) => handleUpdateFilter(step.id, filter.id, filter.field, e.target.value, filter.value)}
                                           >
-                                            <option value="==">==</option>
-                                            <option value="!=">!=</option>
-                                            <option value=">=">&gt;=</option>
-                                            <option value="<=">&lt;=</option>
-                                            <option value="IN">IN</option>
+                                            {filterOperators.map(operator => (
+                                              <option key={operator} value={operator}>{operator}</option>
+                                            ))}
                                           </select>
                                           <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
                                         </div>
-                                        <div
-                                          onClick={() => setEditingParamsStepId(step.id)}
-                                          className={`h-full px-4 flex items-center bg-white border-l border-slate-100 min-w-[120px] cursor-pointer group/val relative ${filter.field.includes('数量') ? 'bg-red-50/30' : 'hover:bg-blue-50/50'}`}
-                                        >
-                                          <div className="flex items-center gap-2 w-full">
-                                            <div className={`flex-1 text-[13px] font-black ${filter.field.includes('数量') ? 'text-red-600' : 'text-orange-600'}`}>
-                                              {filter.value}
+                                        <div className={`h-full px-4 flex items-center border-l border-slate-100 min-w-[120px] relative ${isNumericField ? 'bg-red-50/30' : 'bg-white hover:bg-blue-50/50'}`}>
+                                          {hasEnumOptions ? (
+                                            <div className="relative w-full">
+                                              <select
+                                                className="w-full bg-transparent text-[13px] font-black text-orange-600 appearance-none focus:outline-none pr-4"
+                                                value={filter.value}
+                                                onChange={(e) => handleUpdateFilter(step.id, filter.id, filter.field, filter.operator, e.target.value)}
+                                              >
+                                                <option value="">请选择</option>
+                                                {filterMeta?.enumOptions?.map(option => <option key={option} value={option}>{option}</option>)}
+                                              </select>
+                                              <ChevronDown className="w-3 h-3 absolute right-0 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
                                             </div>
-                                            <div className="flex items-center gap-1 opacity-40 group-hover/val:opacity-100 transition-opacity">
-                                              <LinkIcon className="w-3 h-3 text-slate-400" />
-                                              <Settings className="w-3 h-3 text-slate-400" />
-                                            </div>
-                                          </div>
-                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[9px] rounded whitespace-nowrap opacity-0 group-hover/val:opacity-100 pointer-events-none transition-opacity z-50">
-                                            此值引用自“参数配置中心”，点击前往修改
-                                          </div>
+                                          ) : (
+                                            <input
+                                              className={`w-full bg-transparent text-[13px] font-black focus:outline-none ${isNumericField ? 'text-red-600' : 'text-orange-600'}`}
+                                              value={filter.value}
+                                              onChange={(e) => handleUpdateFilter(step.id, filter.id, filter.field, filter.operator, e.target.value)}
+                                              placeholder={fieldDisplay}
+                                            />
+                                          )}
                                         </div>
                                         <button
                                           onClick={() => handleRemoveFilter(step.id, filter.id)}
@@ -2613,7 +2642,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                           <X className="w-4 h-4" />
                                         </button>
                                       </div>
-                                    ))}
+                                      );
+                                    })}
                                     {stepFilters.length === 0 && (
                                       <div className="w-full py-6 bg-slate-50/50 border border-dashed border-slate-200 rounded-[14px] text-center text-slate-400 text-[12px] italic flex items-center justify-center gap-2">
                                         <div className="w-2 h-2 rounded-full bg-slate-200"></div>
@@ -2662,13 +2692,9 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                           value={stepInputSubject}
                                           onChange={(e) => handleUpdateStepSemantics(step.id, { inputSubject: e.target.value as FactorTarget })}
                                         >
-                                          <option value="CONTEXT">💼 业务场景 (Context)</option>
-                                          <option value="ORDER_LINE">📑 订单明细 (OrderLine)</option>
-                                          <option value="INVENTORY_LOT">📊 库存批次 (Lot)</option>
-                                          <option value="LOCATION">📦 货位空间 (Location)</option>
-                                          <option value="EQUIPMENT">⚡ 自动化设备 (Equipment)</option>
-                                          <option value="OPERATOR">👤 人工岗位 (Operator)</option>
-                                          <option value="CARRIER">🛒 载具容器 (Carrier)</option>
+                                          {subjectOptions.map(option => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                          ))}
                                         </select>
                                         <ChevronDown className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-white/70 pointer-events-none" />
                                       </div>
@@ -2845,7 +2871,10 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
         if (!step) return null;
         
         const subject = getEffectiveInputSubject(step, data.primarySubject);
-        const availableParams: AvailableParam[] = (() => {
+        const outputSubject = getEffectiveOutputSubject(step, data.primarySubject);
+        const action = getEffectiveStepAction(step);
+        const metadataParams = getActionParams(action, subject, outputSubject).map(toAvailableParam);
+        const fallbackParams: AvailableParam[] = (() => {
           switch (subject) {
             case 'LOCATION':
               return [
@@ -2854,7 +2883,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                 { key: 'zonePreference', label: '库区优先策略 (Zoning)', type: 'select', options: ['自动(全局平衡)', '就近优先', '空位率优先', '订单任务聚合', '周转路径最优'], group: 'ADJUSTMENT' },
                 { key: 'congestionControl', label: '拥堵规避因子 (Traffic)', type: 'number', unit: '%', placeholder: '20', group: 'ADJUSTMENT' },
                 { key: 'aisleSorting', label: '巷道内拣选权重方向', type: 'select', options: ['顺动线', '逆动线', '交替蛇形'], group: 'ADJUSTMENT' },
-                { key: 'capacityBuffer', label: '库位预留周转容积 (Buffer)', type: 'number', unit: '%', placeholder: '10', group: 'BEHAVIORAL' }
+                { key: 'capacityBuffer', label: '库位预留周转容积 (Buffer)', type: 'number', unit: '%', placeholder: '10', group: 'BEHAVIORAL' },
               ];
             case 'INVENTORY_LOT':
               return [
@@ -2863,13 +2892,13 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                 { key: 'lotMixControl', label: '混批管控级别', type: 'select', options: ['严禁混批', '允许同SKU混批', '完全允许'], group: 'CONSTRAINT' },
                 { key: 'fifoWeight', label: 'FIFO(先进先出)执行权重', type: 'number', unit: '%', placeholder: '100', group: 'ADJUSTMENT' },
                 { key: 'freshnessLevel', label: '生鲜等级准入 (Grade)', type: 'select', options: ['A级(极鲜)', 'B级(标准)', '通用'], group: 'ADJUSTMENT' },
-                { key: 'palletToPieceThreshold', label: '整托转拆零临界系数', type: 'number', unit: '%', placeholder: '70', group: 'BEHAVIORAL' }
+                { key: 'palletToPieceThreshold', label: '整托转拆零临界系数', type: 'number', unit: '%', placeholder: '70', group: 'BEHAVIORAL' },
               ];
             case 'EQUIPMENT':
               return [
                 { key: 'loadLimit', label: '设备任务负载上限', type: 'number', unit: '%', placeholder: '85', group: 'CONSTRAINT' },
                 { key: 'rechargeThreshold', label: '低电量强制返场阈值', type: 'number', unit: '%', placeholder: '20', group: 'CONSTRAINT' },
-                { key: 'speedMode', label: '作业运行能效模式', type: 'select', options: ['高能效(极速)', '标准平衡', '节能低噪'], group: 'ADJUSTMENT' }
+                { key: 'speedMode', label: '作业运行能效模式', type: 'select', options: ['高能效(极速)', '标准平衡', '节能低噪'], group: 'ADJUSTMENT' },
               ];
             case 'ORDER_LINE':
               return [
@@ -2883,41 +2912,42 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                 { key: 'autoFullInbound', label: '到期自动满单收货', type: 'boolean', group: 'BEHAVIORAL' },
                 { key: 'autoInbound', label: '是否自动入库 (Auto-Putaway)', type: 'boolean', group: 'BEHAVIORAL' },
                 { key: 'splitAllowed', label: '允许在节点自动拆分 WO (Split)', type: 'boolean', group: 'BEHAVIORAL' },
-                { key: 'priorityMapping', label: '子任务优先级映射表', type: 'select', options: ['跟随母单', '固定最高', '动态加权提升'], group: 'BEHAVIORAL' }
+                { key: 'priorityMapping', label: '子任务优先级映射表', type: 'select', options: ['跟随母单', '固定最高', '动态加权提升'], group: 'BEHAVIORAL' },
               ];
             case 'CONTEXT':
               return [
                 { key: 'strictMode', label: '业务校验严谨度 (Control Level)', type: 'select', options: ['宽松(仅记录)', '标准(强提醒)', '严格(硬拦截)'], group: 'CONSTRAINT' },
                 { key: 'retryLimit', label: '失败自动重试次数', type: 'number', unit: '次', placeholder: '3', group: 'ADJUSTMENT' },
                 { key: 'autoSuspend', label: '异常自动挂起任务 (Auto-Suspend)', type: 'boolean', description: '触发拦截时自动挂起相关单据', group: 'BEHAVIORAL' },
-                { key: 'fallbackRoute', label: '拦截后处理路径', type: 'select', options: ['抛出异常(人工处理)', '自动切换备选策略', '跳过并执行下一动作'], group: 'BEHAVIORAL' }
+                { key: 'fallbackRoute', label: '拦截后处理路径', type: 'select', options: ['抛出异常(人工处理)', '自动切换备选策略', '跳过并执行下一动作'], group: 'BEHAVIORAL' },
               ];
             case 'OPERATOR':
               return [
                 { key: 'skillRequired', label: '操作技能要求 (Skill)', type: 'select', options: ['L1(实习)', 'L2(熟练)', 'L3(专家/资质)'], group: 'CONSTRAINT' },
                 { key: 'safetyCheckStep', label: '作业前置安全强检', type: 'boolean', group: 'CONSTRAINT' },
-                { key: 'shiftEndLeadTime', label: '班次结束前禁派单阀值', type: 'number', unit: 'min', placeholder: '30', group: 'BEHAVIORAL' }
+                { key: 'shiftEndLeadTime', label: '班次结束前禁派单阀值', type: 'number', unit: 'min', placeholder: '30', group: 'BEHAVIORAL' },
               ];
             case 'CARRIER':
               return [
                 { key: 'carrierTypeLock', label: '强制载具选型约束', type: 'select', options: ['无限制', '保温箱专用', '原箱发货(不换箱)', '托盘/地堆'], group: 'CONSTRAINT' },
                 { key: 'mixOrderAllowed', label: '允许合行/合批混装', type: 'boolean', group: 'CONSTRAINT' },
                 { key: 'volumeUtilization', label: '最低体积装载率阈值', type: 'number', unit: '%', placeholder: '60', group: 'ADJUSTMENT' },
-                { key: 'stackingTolerance', label: '码垛溢位容忍度', type: 'number', unit: '%', placeholder: '5', group: 'BEHAVIORAL' }
+                { key: 'stackingTolerance', label: '码垛溢位容忍度', type: 'number', unit: '%', placeholder: '5', group: 'BEHAVIORAL' },
               ];
             case 'STAGING_AREA':
               return [
                 { key: 'dedicatedLane', label: '独占发货道优先级', type: 'boolean', group: 'CONSTRAINT' },
                 { key: 'consolidationWindow', label: '波次合流集货时间窗', type: 'number', unit: 'min', placeholder: '60', group: 'ADJUSTMENT' },
-                { key: 'maxWaitTime', label: '集货区最大滞留周期', type: 'number', unit: 'Hrs', placeholder: '4', group: 'BEHAVIORAL' }
+                { key: 'maxWaitTime', label: '集货区最大滞留周期', type: 'number', unit: 'Hrs', placeholder: '4', group: 'BEHAVIORAL' },
               ];
             default:
               return [
-                { key: 'customParam', label: '自定义业务挂载参数', type: 'number', placeholder: '0', group: 'ADJUSTMENT' }
+                { key: 'customParam', label: '自定义业务挂载参数', type: 'number', placeholder: '0', group: 'ADJUSTMENT' },
               ];
           }
         })();
 
+        const availableParams: AvailableParam[] = metadataParams.length > 0 ? metadataParams : fallbackParams;
         const groupedParams = availableParams.reduce<Record<string, AvailableParam[]>>((acc, param) => {
           if (!acc[param.group]) acc[param.group] = [];
           acc[param.group].push(param);
@@ -2944,7 +2974,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Target:</span>
                        <Badge variant="neutral" className="bg-blue-100 text-blue-700 border-none font-bold text-[9px] h-4">
-                          {subject}
+                          {getSubjectLabel(subject)}
                        </Badge>
                        <span className="text-[9px] text-slate-300 ml-1">|</span>
                        <span className="text-[10px] text-slate-400 italic">同一套 step.config，统一承载节点参数与执行参数</span>

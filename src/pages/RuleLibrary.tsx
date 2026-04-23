@@ -94,10 +94,10 @@ export default function RuleLibrary({
           <div>
             <div className="flex items-center gap-2 mb-1">
                <Layers className="w-5 h-5 text-theme-primary" />
-               <h1 className="text-2xl font-bold tracking-tight">规则阶段与语义步骤资产中心</h1>
+               <h1 className="text-2xl font-bold tracking-tight">全局规则库</h1>
             </div>
             <p className="text-theme-muted text-[13px] max-w-2xl leading-relaxed">
-              统一管理可复用的规则阶段与其内部语义步骤资产。这里看到的不只是拦截条件，而是完整的阶段意图、动作语义、主体迁移和步骤执行结构。
+              平台公共规则组件的主归口。这里管理跨策略复用的公共规则资产，同时区分展示策略实例中的私有规则，避免把实例层内容误认为公共规则主数据。
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -105,30 +105,30 @@ export default function RuleLibrary({
               onClick={onOpenHelp}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors"
             >
-              <BookOpen className="w-3.5 h-3.5" /> 业务规则建模指南
+              <BookOpen className="w-3.5 h-3.5" /> 规则资产说明
             </button>
             <Button variant="primary" className="gap-2 shadow-lg shadow-theme-primary/20" onClick={handleCreateIndependentRule}>
-              <Plus className="w-4 h-4" /> 新建独立规则
+              <Plus className="w-4 h-4" /> 新建公共规则
             </Button>
           </div>
         </header>
 
-        {/* Logic Guide Banner */}
+        {/* Rule Asset Guide Banner */}
         <div className="mb-8 p-5 bg-gradient-to-br from-blue-900 to-indigo-950 rounded-2xl text-white flex items-start gap-4 shadow-xl border border-white/5 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-24 -mt-24 blur-3xl"></div>
           <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5 text-blue-300" />
           </div>
           <div className="flex-1 relative z-10">
-            <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">原子化规则管控原理</h4>
+            <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">规则资产分层：公共规则沉淀复用，实例规则承接落地</h4>
             <div className="grid grid-cols-2 gap-8 mt-3">
               <div className="text-[12px] text-white/60 leading-relaxed">
-                <b className="text-white/80 block mb-1">跨场景原子性 (Atomicity)</b>
-                独立规则一旦在库中更新，所有引用该规则的策略（Strategy）将同步应用最新版本，实现业务流控的全局一致性。
+                <b className="text-white/80 block mb-1">公共规则是规则资产层主真相</b>
+                在这里维护的独立规则应作为平台公共组件被多个策略实例复用，它们引用元数据治理提供的对象、属性、动作和因子，而不是重新造一套底层资产。
               </div>
               <div className="text-[12px] text-white/60 leading-relaxed">
-                <b className="text-white/80 block mb-1">Priority 权重分配</b>
-                独立规则通常具备极高的预处理优先权。系统默认在所有策略私有规则执行前，先进行库级独立规则的准入校验。
+                <b className="text-white/80 block mb-1">策略私有规则只在这里做区分展示</b>
+                策略实例中的私有规则属于实例层真相，本页可帮助对比和引用，但不应把实例规则与公共规则混成同一类资产口径。
               </div>
             </div>
           </div>
@@ -138,9 +138,9 @@ export default function RuleLibrary({
         <div className="bg-white border border-theme-border rounded-[12px] p-2 flex items-center justify-between mb-6 shadow-sm">
           <div className="flex gap-1">
             {[
-              { id: 'ALL', label: '全部规则' },
-              { id: 'INDEPENDENT', label: '独立拦截库' },
-              { id: 'STRATEGY', label: '策略私有逻辑' }
+              { id: 'ALL', label: '全部规则视图' },
+              { id: 'INDEPENDENT', label: '公共规则资产' },
+              { id: 'STRATEGY', label: '策略实例规则' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -247,7 +247,7 @@ export default function RuleLibrary({
                         }
                       }}
                     >
-                      <PlayCircle className="w-3.5 h-3.5" /> 灰度测试
+                      <PlayCircle className="w-3.5 h-3.5" /> 仿真验证
                     </Button>
                   </div>
                 </div>

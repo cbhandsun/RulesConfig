@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Factor } from '../types/wms';
+import { Factor, RuleStepAction, RuleStepType } from '../types/wms';
 import { mockFactors } from '../data/mock';
+import { attributeMetas, getObjectMeta, subjectOptions } from '../data/metadata';
 import { Button, Card, Badge, Input, Select } from '../components/ui';
 import { Settings, Plus, Search, Layers, Box, Filter, BookOpen, Database } from 'lucide-react';
 
@@ -49,15 +50,39 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
     setEditingFactor(null);
   };
 
+  const getAttributeLabels = (factor: Factor) => factor.attributeRefs?.map(attributeRef => {
+    const meta = attributeMetas.find(attribute => attribute.id === attributeRef);
+    return meta?.name ?? attributeRef;
+  }) ?? [];
+
+  const getActionLabels = (actions?: RuleStepAction[]) => actions ?? [];
+  const getStepTypeLabels = (stepTypes?: RuleStepType[]) => stepTypes ?? [];
+
+  const renderMetaChips = (values: string[], emptyLabel: string) => {
+    if (values.length === 0) {
+      return <span className="text-[10px] text-theme-muted opacity-60">{emptyLabel}</span>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {values.map(value => (
+          <span key={value} className="inline-flex items-center rounded-full border border-theme-border bg-theme-bg px-2 py-0.5 text-[10px] font-medium text-theme-ink">
+            {value}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="p-8 pb-16 bg-theme-bg min-h-[calc(100vh-60px)] font-sans text-theme-ink flex flex-col items-center">
       <div className="w-full max-w-5xl">
         <header className="mb-6 flex items-end justify-between">
           <div>
-            <h1 className="text-2xl font-semibold mb-2">业务偏好与约束管理 (Constraints & Preferences)</h1>
+            <h1 className="text-2xl font-semibold mb-2">因子工作台</h1>
             <p className="text-theme-muted text-[13px] max-w-2xl leading-relaxed">
-              统一管理并维护底层调度引擎所需的各项计算因子。可配置自定义公式、归一化权重计算方法，支持扩展并注入至前端策略画布中。
-              <button 
+              元数据治理下的专业子域视图，用于维护同一份因子主数据。这里管理因子公式、归一化方式、适用对象与动作约束，而不是创建第二套独立真相。
+              <button
                 onClick={() => setShowWeightGuide(true)}
                 className="ml-2 text-theme-primary hover:underline font-medium inline-flex items-center gap-1"
               >
@@ -70,30 +95,30 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
               onClick={onOpenHelp}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors"
             >
-              <BookOpen className="w-3.5 h-3.5" /> 因子建模说明
+              <BookOpen className="w-3.5 h-3.5" /> 因子治理说明
             </button>
             <Button variant="primary" className="gap-2" onClick={() => setIsCreating(true)}>
-              <Plus className="w-4 h-4" /> 注册新因子
+              <Plus className="w-4 h-4" /> 新建因子
             </Button>
           </div>
         </header>
 
-        {/* Global Factor Logic Guide */}
+        {/* Factor Governance Guide */}
         <div className="mb-8 p-5 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl text-white flex items-start gap-4 shadow-xl border border-white/5 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full -mr-16 -mt-16 blur-xl"></div>
           <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0">
             <Database className="w-5 h-5 text-purple-400" />
           </div>
           <div className="flex-1 relative z-10">
-            <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">因子建模原理：数据维度与计算引擎</h4>
+            <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">因子治理原则：专业工作台编辑，同源主数据回写</h4>
             <div className="grid grid-cols-2 gap-8 mt-3">
               <div className="text-[12px] text-white/60 leading-relaxed">
-                <b className="text-white/80 block mb-1 underline decoration-purple-500/50 underline-offset-4">多维约束限制</b>
-                每个因子都有其“生命周期”和“适用范围（Focus）”。例如：<code>距离优先级</code> 仅能作用于库位对象。系统会自动校验编排时的对象兼容性，防止跨维计算。
+                <b className="text-white/80 block mb-1 underline decoration-purple-500/50 underline-offset-4">元数据子域，不是第二套资产库</b>
+                因子属于元数据资产的一部分，本页只是因子域的专业工作台。所有编辑都应回写同一份因子主数据，避免“元数据一份、因子集一份”的双真相结构。
               </div>
               <div className="text-[12px] text-white/60 leading-relaxed">
-                <b className="text-white/80 block mb-1 underline decoration-purple-500/50 underline-offset-4">归一化评分机制</b>
-                所有因子的原始值（如距离米数、库存件数）都必须定义 <b>Normalization</b> 规则，最终映射为 0-100 的评分，从而实现不同量纲因子间的加权求和。
+                <b className="text-white/80 block mb-1 underline decoration-purple-500/50 underline-offset-4">面向规则、模板与实例复用</b>
+                因子在这里被治理，但会被规则库、模板库和策略实例共同引用；这页负责专业维护，不负责完整规则编排和策略实例落地。
               </div>
             </div>
           </div>
@@ -167,22 +192,40 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                     <code className="text-[10px] font-mono text-indigo-600 break-all">{factor.logic.formula}</code>
                   </div>
                 )}
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-theme-muted mb-1 opacity-60">关联属性</div>
+                    {renderMetaChips(getAttributeLabels(factor), '未声明属性依赖')}
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-theme-muted mb-1 opacity-60">适用动作</div>
+                    {renderMetaChips(getActionLabels(factor.applicableActions), '未限制动作')}
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-theme-muted mb-1 opacity-60">适用步骤类型</div>
+                    {renderMetaChips(getStepTypeLabels(factor.applicableStepTypes), '未限制步骤类型')}
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-theme-muted mb-1 opacity-60">标签 / 归一化</div>
+                    {renderMetaChips([
+                      ...(factor.tags ?? []),
+                      ...(factor.normalization?.method ? [factor.normalization.method] : []),
+                      ...(factor.normalization?.outputUnit ? [factor.normalization.outputUnit] : []),
+                    ], '未声明标签与归一化')}
+                  </div>
+                </div>
               </div>
 
               <div className="relative z-10 pt-4 border-t border-[#F2F2F7] mt-auto">
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col min-w-0">
                     <span className="text-[10px] text-theme-muted uppercase tracking-tighter opacity-50">度量对象 (Target)</span>
-                    <span className="text-[11px] font-bold text-theme-ink">
-                      {factor.targetObject === 'LOCATION' ? '库位 (Location)' : 
-                       factor.targetObject === 'INVENTORY' ? '库存 (Inventory)' : 
-                       factor.targetObject === 'RESOURCE' ? '设备资源 (Equip)' :
-                       factor.targetObject === 'TASK' ? '作业任务 (Task)' :
-                       factor.targetObject === 'CONTAINER' ? '载具 (Container)' : '负载 (Load)'}
+                    <span className="text-[11px] font-bold text-theme-ink truncate">
+                      {getObjectMeta(factor.targetObject)?.name ?? factor.targetObject}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button 
+                    <button
                       onClick={() => setEditingFactor(factor)}
                       className="p-1.5 border border-theme-border hover:bg-theme-bg rounded-[6px] transition-colors"
                     >
@@ -223,16 +266,14 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                  </div>
                  <div>
                    <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-1.5">针对对象 (Subject)</label>
-                   <select 
+                   <select
                      className="w-full h-9 rounded-[6px] border border-theme-border text-[12px] px-2 bg-white outline-none"
                      value={newFactor.targetObject}
                      onChange={(e) => setNewFactor({ ...newFactor, targetObject: e.target.value as any })}
                    >
-                     <option value="LOCATION">库位 (Location)</option>
-                     <option value="INVENTORY_LOT">库存 (Inventory)</option>
-                     <option value="EQUIPMENT">设备 (Equip)</option>
-                     <option value="OPERATOR">人员 (Operator)</option>
-                     <option value="ORDER_LINE">订单 (OrderLine)</option>
+                     {subjectOptions.map(option => (
+                       <option key={option.value} value={option.value}>{option.label}</option>
+                     ))}
                    </select>
                  </div>
                </div>

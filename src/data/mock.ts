@@ -1559,7 +1559,15 @@ export const mockFactors: Factor[] = [
     category: 'LOGICAL',
     impactType: 'ADJUSTMENT',
     description: '波次计算核心因子。量化一组订单中共同包含的 SKU 比例，重合度越高，越倾向于打包至同一拣货波次，提升边际拣选效率。',
-    logic: { formula: 'Intersection(Orders.SKUs) / Union(Orders.SKUs)', unit: '%' }
+    logic: { formula: 'Intersection(Orders.SKUs) / Union(Orders.SKUs)', unit: '%' },
+    attributeRefs: ['ORDER_LINE.docType', 'ORDER_LINE.priority'],
+    applicableActions: ['SELECT', 'GENERATE_TASK'],
+    applicableStepTypes: ['SELECT', 'GATEWAY'],
+    tags: ['wave', 'affinity'],
+    normalization: { method: 'MIN_MAX_ASC', range: [0, 100], outputUnit: '%' },
+    businessMeaning: '衡量一批需求之间是否适合被并到同一波次处理。',
+    decisionPurpose: '帮助 step 判断哪些订单应一起释放，减少重复拣选与波次碎片化。',
+    interpretationHint: '值越高表示订单之间越像，越适合聚合处理。'
   },
   {
     id: 'fact-deadhead-dist',
@@ -1568,7 +1576,15 @@ export const mockFactors: Factor[] = [
     category: 'PHYSICAL',
     impactType: 'ADJUSTMENT',
     description: '任务交叉(Interleaving)核心因子。计算上一个任务卸货点到下一个任务拾货点之间的导航距离，避免设备重载去、空载回。',
-    logic: { formula: 'Route(DropLocation, NextPickLocation)', unit: 'm' }
+    logic: { formula: 'Route(DropLocation, NextPickLocation)', unit: 'm' },
+    attributeRefs: ['EQUIPMENT.loadRate', 'EQUIPMENT.batteryLevel'],
+    applicableActions: ['ASSIGN', 'ROUTE', 'ALLOCATE'],
+    applicableStepTypes: ['SELECT', 'TRANSFORM'],
+    tags: ['interleaving', 'distance'],
+    normalization: { method: 'MIN_MAX_DESC', range: [0, 1000], outputUnit: 'm' },
+    businessMeaning: '衡量设备去接下一单前需要额外空驶多远。',
+    decisionPurpose: '帮助 step 优先把任务给顺路设备，降低空跑和设备浪费。',
+    interpretationHint: '值越小越好，说明下一单更顺路。'
   },
   {
     id: 'fact-staging-capacity',
@@ -1579,14 +1595,22 @@ export const mockFactors: Factor[] = [
     description: '发货路由控制因子。评估候选集货月台或缓存道的可用托盘位/体积，优先向空闲度高的发货门分配波次任务。',
     logic: { formula: '1 - (StagingOccupiedVol / StagingLimitVol)', unit: '%' }
   },
-  { 
-    id: 'fact-shelf-life-ratio', 
-    name: '剩余保质期占比 (FEFO%)', 
-    targetObject: 'INVENTORY_LOT', 
+  {
+    id: 'fact-shelf-life-ratio',
+    name: '剩余保质期占比 (FEFO%)',
+    targetObject: 'INVENTORY_LOT',
     category: 'TEMPORAL',
     impactType: 'ADJUSTMENT',
     description: '绝对核心生鲜因子。公式：(过期日期 - 当前时间) / 总保质期。值越小表示越迫切需出库，用于支持严格的 FEFO 管理。',
-    logic: { formula: '(ExpiryDate - Now) / TotalShelfLife', unit: '%' }
+    logic: { formula: '(ExpiryDate - Now) / TotalShelfLife', unit: '%' },
+    attributeRefs: ['INVENTORY_LOT.shelfLifeRatio', 'INVENTORY_LOT.inventoryStatus'],
+    applicableActions: ['SELECT', 'ALLOCATE', 'ASSIGN'],
+    applicableStepTypes: ['SELECT', 'FILTER'],
+    tags: ['fefo', 'freshness'],
+    normalization: { method: 'MIN_MAX_DESC', range: [0, 100], outputUnit: '%' },
+    businessMeaning: '衡量批次距离过期还有多少安全余量。',
+    decisionPurpose: '帮助 step 优先消耗更接近临期的库存，避免过期和滞销。',
+    interpretationHint: '值越小越应优先出库；如果做 ASC 排序，更贴合 FEFO。'
   },
   { 
     id: 'fact-fifo-date', 
@@ -1651,14 +1675,22 @@ export const mockFactors: Factor[] = [
     description: '优先选择在黄金作业高度区域（0.8m - 1.5m）的储位，以提高人工拣货效率并降低疲劳度。',
     logic: { formula: '1 / (abs(BinHeight - 1.2) + 0.1)', unit: 'Score' }
   },
-  { 
-    id: 'fact-clear-bin', 
-    name: '储位清空倾向度', 
-    targetObject: 'INVENTORY_LOT', 
+  {
+    id: 'fact-clear-bin',
+    name: '储位清空倾向度',
+    targetObject: 'INVENTORY_LOT',
     category: 'LOGICAL',
     impactType: 'ADJUSTMENT',
     description: '衡量订单需求量与现有储位存量的契合度。若分配后可清空储位以腾出库容，则获得加分。',
-    logic: { formula: 'InventoryQty == OrderQty ? 1.0 : 0.0' }
+    logic: { formula: 'InventoryQty == OrderQty ? 1.0 : 0.0' },
+    attributeRefs: ['INVENTORY_LOT.availableQty'],
+    applicableActions: ['SELECT', 'ALLOCATE', 'ASSIGN'],
+    applicableStepTypes: ['SELECT', 'TRANSFORM'],
+    tags: ['clear-bin', 'capacity-release'],
+    normalization: { method: 'BOOLEAN', outputUnit: 'flag' },
+    businessMeaning: '衡量这次分配是否能顺手清掉一个库存点位或批次残量。',
+    decisionPurpose: '帮助 step 在满足业务需求的前提下顺带释放库容、减少碎片库存。',
+    interpretationHint: '命中通常代表“这次分完能清干净”，适合做加分项而不是唯一门槛。'
   },
   { 
     id: 'fact-abc-hit', 
@@ -1669,14 +1701,22 @@ export const mockFactors: Factor[] = [
     description: '基于大数据分析的 SKU 动销热度画像与物理储位热度规划的匹配分。',
     logic: { formula: 'SkuABC == LocationABC ? 1.0 : 0.2' }
   },
-  { 
-    id: 'fact-route-dist', 
-    name: '路径行驶距离 (Manhattan)', 
-    targetObject: 'LOCATION', 
+  {
+    id: 'fact-route-dist',
+    name: '路径行驶距离 (Manhattan)',
+    targetObject: 'LOCATION',
     category: 'PHYSICAL',
     impactType: 'ADJUSTMENT',
     description: '计算作业员或移动设备从当前任务锚点到目标库位的物理行驶路径。',
-    logic: { formula: 'abs(X2-X1) + abs(Y2-Y1)', unit: 'M' }
+    logic: { formula: 'abs(X2-X1) + abs(Y2-Y1)', unit: 'M' },
+    attributeRefs: ['LOCATION.routeDistance'],
+    applicableActions: ['SELECT', 'ASSIGN', 'ROUTE'],
+    applicableStepTypes: ['SELECT', 'TRANSFORM'],
+    tags: ['route', 'distance'],
+    normalization: { method: 'MIN_MAX_DESC', range: [0, 2000], outputUnit: 'm' },
+    businessMeaning: '衡量从当前任务位置到目标库位的实际作业距离。',
+    decisionPurpose: '帮助 step 选择更省路径、更低时耗的候选位置或路径。',
+    interpretationHint: '值越小通常越优，适合做就近优先或最短路优先。'
   },
   { 
     id: 'fact-volume-fill', 
@@ -1721,7 +1761,14 @@ export const mockFactors: Factor[] = [
     category: 'LOGICAL',
     impactType: 'BEHAVIORAL',
     description: '作业员在 PDA 或工作台上手动指定的收货理货位。作为最高优先级，系统将忽略算法逻辑强制指向该位置以便于现场灵活调度。',
-    logic: { formula: 'Context.ManualLocationId != null ? 1.0 : 0.0' }
+    logic: { formula: 'Context.ManualLocationId != null ? 1.0 : 0.0' },
+    attributeRefs: ['CONTEXT.strictMode'],
+    applicableActions: ['ASSIGN', 'SELECT'],
+    applicableStepTypes: ['SELECT', 'GATEWAY'],
+    tags: ['manual-override'],
+    businessMeaning: '代表现场人工明确给出的强意图。',
+    decisionPurpose: '帮助 step 在现场人工指定位置时优先遵从人工调度，而不是继续算法竞争。',
+    interpretationHint: '命中后通常意味着需要压过其他智能因子。'
   },
   {
     id: 'fact-sku-inbound-loc',
@@ -1730,7 +1777,14 @@ export const mockFactors: Factor[] = [
     category: 'LOGICAL',
     impactType: 'BEHAVIORAL',
     description: '来源于 SKU 主数据配置。针对特定品项（如活鲜、高价值冻品）设定的固定收货道口，旨在保障特殊装卸设备或温控设施的就近原则。',
-    logic: { formula: 'Location.Id == Sku.DefaultInboundLoc ? 1.0 : 0.0' }
+    logic: { formula: 'Location.Id == Sku.DefaultInboundLoc ? 1.0 : 0.0' },
+    attributeRefs: ['LOCATION.tempZone', 'LOCATION.routeDistance'],
+    applicableActions: ['ASSIGN', 'SELECT'],
+    applicableStepTypes: ['SELECT', 'TRANSFORM'],
+    tags: ['sku-master', 'inbound'],
+    businessMeaning: '代表主数据层面对某个 SKU 最常用或最稳妥的默认收货落点。',
+    decisionPurpose: '帮助 step 在没有更强实时信号时优先遵循商品主档沉淀下来的经验规则。',
+    interpretationHint: '命中通常表示“这就是该 SKU 平时该去的地方”。'
   },
   {
     id: 'fact-doctype-inbound-loc',
@@ -1739,7 +1793,14 @@ export const mockFactors: Factor[] = [
     category: 'LOGICAL',
     impactType: 'BEHAVIORAL',
     description: '策略链的最终兜底逻辑。根据业务单据类型（如：大仓补货 vs 供应商直送）自动分配至对应的月台组 or 缓冲区。',
-    logic: { formula: 'Location.Id == DocType.DefaultLoc ? 1.0 : 0.0' }
+    logic: { formula: 'Location.Id == DocType.DefaultLoc ? 1.0 : 0.0' },
+    attributeRefs: ['ORDER_LINE.docType', 'LOCATION.routeDistance'],
+    applicableActions: ['ASSIGN', 'ROUTE'],
+    applicableStepTypes: ['SELECT', 'GATEWAY'],
+    tags: ['fallback', 'doctype'],
+    businessMeaning: '代表按业务单据类型沉淀下来的默认收货兜底规则。',
+    decisionPurpose: '帮助 step 在缺少人工指定和 SKU 主档指引时仍能落到一个合理默认位置。',
+    interpretationHint: '更像最后兜底规则，不应压过更强的实时约束或人工指令。'
   }
 ];
 
