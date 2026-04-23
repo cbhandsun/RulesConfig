@@ -998,56 +998,56 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
   return (
     <div className="flex flex-col bg-theme-bg h-full font-sans text-theme-ink overflow-hidden">
       {/* Header */}
-      <header className="bg-theme-card border-b border-theme-border px-6 h-[60px] flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={onBack} className="p-2 h-auto text-theme-muted">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex flex-col">
-            <div className="flex items-baseline">
-              <h1 className="text-[18px] font-medium m-0 tracking-tight">策略实例编辑器：{data.name}</h1>
-              <span className="text-[12px] opacity-60 ml-3 font-mono">ID: {data.id} / {data.version} ({data.status})</span>
+      <header className="shrink-0 border-b border-theme-border bg-theme-card px-4 py-3 sm:px-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <Button variant="ghost" onClick={onBack} className="min-h-9 px-2 text-theme-muted">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-col gap-1 lg:flex-row lg:items-baseline">
+                <h1 className="m-0 text-[18px] font-medium tracking-tight">策略实例编辑器：{data.name}</h1>
+                <span className="break-all text-[12px] font-mono opacity-60 lg:ml-3">ID: {data.id} / {data.version} ({data.status})</span>
+              </div>
+              <span className="text-[11px] text-theme-muted">实例层 · 装配公共规则、私有规则、Guardrail 与参数化配置</span>
             </div>
-            <span className="text-[11px] text-theme-muted">实例层 · 装配公共规则、私有规则、Guardrail 与参数化配置</span>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            className="px-3 h-9 gap-2 rounded-full hover:bg-blue-50 text-blue-600 transition-colors relative group"
-            onClick={() => setIsGuideModalOpen(true)}
-          >
-            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full animate-pulse border border-white"></div>
-            <HelpCircle className="w-4 h-4" />
-            <span className="text-[13px] font-bold">实例装配指南</span>
-          </Button>
-
-          <Button 
-            variant="ghost" 
-            className="px-3 h-9 gap-2 rounded-full border border-theme-border text-theme-muted hover:bg-theme-pill transition-colors"
-            onClick={() => setIsPayloadModalOpen(true)}
-          >
-            <Code className="w-4 h-4" />
-            <span className="text-[13px] font-medium">查看实例报文</span>
-          </Button>
-          
-          <div className="h-6 w-px bg-theme-border mx-1"></div>
-          <Button variant="secondary" className="bg-black/5 text-theme-ink hover:bg-black/10">实例版本</Button>
-          <Button variant="outline" className="gap-2"><Settings className="w-4 h-4" /> 实例属性</Button>
-          <Button variant="accent" className="gap-2" onClick={() => onSimulate(data!.id, activeRuleId || undefined)}>
-            <Play className="w-3.5 h-3.5 fill-current" /> 仿真验证
-          </Button>
-          <Button variant="primary" className="gap-2" onClick={handleSave}>
-            保存实例
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            <Button
+              variant="ghost"
+              className="relative min-h-9 gap-2 rounded-full px-3 text-blue-600 transition-colors hover:bg-blue-50"
+              onClick={() => setIsGuideModalOpen(true)}
+            >
+              <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border border-white bg-blue-500 animate-pulse"></div>
+              <HelpCircle className="w-4 h-4" />
+              <span className="text-[13px] font-bold">实例装配指南</span>
+            </Button>
+            <Button
+              variant="ghost"
+              className="min-h-9 gap-2 rounded-full border border-theme-border px-3 text-theme-muted transition-colors hover:bg-theme-pill"
+              onClick={() => setIsPayloadModalOpen(true)}
+            >
+              <Code className="w-4 h-4" />
+              <span className="text-[13px] font-medium">查看实例报文</span>
+            </Button>
+            <div className="hidden h-6 w-px bg-theme-border xl:block"></div>
+            <Button variant="secondary" className="min-h-9 bg-black/5 text-theme-ink hover:bg-black/10">实例版本</Button>
+            <Button variant="outline" className="min-h-9 gap-2"><Settings className="w-4 h-4" /> 实例属性</Button>
+            <Button variant="accent" className="min-h-9 gap-2" onClick={() => onSimulate(data!.id, activeRuleId || undefined)}>
+              <Play className="w-3.5 h-3.5 fill-current" /> 仿真验证
+            </Button>
+            <Button variant="primary" className="min-h-9 gap-2" onClick={handleSave}>
+              保存实例
+            </Button>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 grid grid-cols-[280px_1fr] overflow-hidden min-h-0">
+      <main className="flex-1 grid grid-cols-1 overflow-hidden min-h-0 xl:grid-cols-[280px_minmax(0,1fr)]">
         
         {/* Factor Library Sidebar */}
-        <aside className="border-r border-theme-border bg-[#FBFBFB] flex flex-col h-full relative z-30 shadow-[4px_0_24px_rgba(0,0,0,0.02)] min-h-0">
+        <aside className="border-b border-theme-border bg-[#FBFBFB] flex flex-col h-full relative z-30 shadow-[4px_0_24px_rgba(0,0,0,0.02)] min-h-0 xl:border-b-0 xl:border-r">
           <div className="p-5 border-b border-theme-border bg-white sticky top-0 z-10">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[11px] font-black uppercase text-theme-muted tracking-[0.1em] flex items-center gap-2">
@@ -1183,19 +1183,19 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
         </aside>
 
         {/* Editor Canvas */}
-        <div className="bg-[#F8F9FA] p-6 space-y-0 overflow-y-auto flex flex-col items-center min-h-0">
-          <div className="w-full max-w-[1000px] flex flex-col gap-5">
+        <div className="min-h-0 space-y-0 overflow-y-auto bg-[#F8F9FA] px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 flex flex-col items-center">
+          <div className="w-full max-w-[1360px] flex flex-col gap-5">
             
             {/* Strategy Intelligence Header - Replaces the old context banner for higher polish */}
-            <div className="bg-white border-b border-theme-border p-8 -mx-6 -mt-6 mb-8 flex items-start justify-between shadow-sm relative overflow-hidden">
+            <div className="-mt-4 -mx-4 mb-8 overflow-hidden border-b border-theme-border bg-white px-4 py-6 shadow-sm relative sm:-mt-6 sm:-mx-6 sm:px-6 lg:-mt-8 lg:-mx-8 lg:px-8 xl:flex xl:items-start xl:justify-between">
                <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-blue-50/20 to-transparent pointer-events-none"></div>
-               <div className="flex flex-col gap-4 relative z-10 flex-1">
-                  <div className="flex items-center gap-3">
+               <div className="relative z-10 flex flex-1 min-w-0 flex-col gap-4">
+                  <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
                      <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-white shadow-xl shadow-slate-200">
                         <Zap className="w-6 h-6 text-theme-primary" />
                      </div>
-                     <div className="flex flex-col">
-                        <div className="flex items-center gap-3">
+                     <div className="flex min-w-0 flex-col">
+                        <div className="flex flex-wrap items-center gap-3">
                            <h1 className="text-[24px] font-black text-theme-ink tracking-tight uppercase leading-none">{data.name}</h1>
                            {data.name.includes('数量') && (
                              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-red-600 text-white rounded-[4px] text-[10px] font-black shadow-sm animate-pulse">
@@ -1209,7 +1209,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                         </div>
                         
                         {/* 层次结构引导 (Hierarchy Guide) */}
-                        <div className="flex items-center gap-2 mt-2 bg-slate-50 w-fit px-3 py-1 rounded-full border border-slate-200/60 shadow-inner">
+                        <div className="mt-2 flex flex-wrap items-center gap-2 bg-slate-50 w-fit px-3 py-1 rounded-full border border-slate-200/60 shadow-inner">
                            <div className="flex items-center gap-1.5">
                               <LayoutGrid className="w-3 h-3 text-slate-400" />
                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">策略 (Strategy)</span>
@@ -1226,8 +1226,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                            </div>
                         </div>
 
-                         <div className="flex flex-col gap-3 mt-3">
-                            <div className="flex items-center gap-4">
+                            <div className="mt-3 flex flex-col gap-3">
+                            <div className="flex flex-wrap items-center gap-4">
                                <div className="flex items-center gap-1.5 text-theme-muted text-[11px] font-bold opacity-60">
                                   <Code className="w-3.5 h-3.5" />
                                   Ver. {data.version}
@@ -1237,7 +1237,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                   驱动对象: {data.primarySubject}
                                </div>
                             </div>
-                            <div className="max-w-[860px] bg-blue-50/40 rounded-2xl p-4 border border-blue-100/60 shadow-sm">
+                            <div className="max-w-[860px] rounded-2xl border border-blue-100/60 bg-blue-50/40 p-4 shadow-sm xl:max-w-[760px]">
                                <div className="flex items-center gap-2 text-blue-600 mb-2">
                                   <BookOpen className="w-3.5 h-3.5" />
                                   <span className="text-[10px] font-black uppercase tracking-widest">策略业务蓝图与逻辑说明</span>
@@ -1282,24 +1282,24 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                   </div>
                </div>
 
-               <div className="flex flex-col items-end gap-3 relative z-10 shrink-0">
-                    <div className="flex gap-2">
-                       <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500 text-white rounded-full text-[10px] font-bold shadow-lg shadow-emerald-500/20 animate-pulse">
+               <div className="relative z-10 mt-4 flex shrink-0 flex-col gap-3 xl:mt-0 xl:items-end">
+                    <div className="flex flex-wrap gap-2 xl:justify-end">
+                       <div className="flex items-center gap-2 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold text-white shadow-lg shadow-emerald-500/20 animate-pulse">
                           <Activity className="w-3 h-3" />
                           已同步最新业务逻辑 v4.1.0
                        </div>
-                       <Button variant="ghost" className="h-10 text-[13px] font-bold border border-slate-200 bg-white hover:bg-slate-50" onClick={onOpenHelp}>
-                        <BookOpen className="w-4 h-4 mr-2" />
+                       <Button variant="ghost" className="min-h-10 gap-2 border border-slate-200 bg-white px-4 text-[13px] font-bold hover:bg-slate-50" onClick={onOpenHelp}>
+                        <BookOpen className="w-4 h-4" />
                         最佳实践
                      </Button>
-                     <Button variant="primary" className="h-10 px-6 font-bold text-[13px] shadow-lg shadow-blue-500/20" onClick={handleSave}>
-                        <Save className="w-4 h-4 mr-2" />
+                     <Button variant="primary" className="min-h-10 gap-2 px-6 text-[13px] font-bold shadow-lg shadow-blue-500/20" onClick={handleSave}>
+                        <Save className="w-4 h-4" />
                         持久化保存
                      </Button>
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] text-theme-muted font-bold uppercase tracking-widest opacity-60">
+                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-theme-muted opacity-60">
                      <Activity className="w-3.5 h-3.5 text-orange-400" />
-                     实时资产计算健康度: <span className="text-emerald-500 ml-1 font-black">EXCELLENT</span>
+                     实时资产计算健康度: <span className="ml-1 font-black text-emerald-500">EXCELLENT</span>
                   </div>
                </div>
             </div>
@@ -3060,8 +3060,8 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                 </div>
               </div>
 
-              <div className="p-6 border-t border-theme-border bg-slate-50 flex gap-3">
-                <Button variant="primary" className="flex-1 h-11 rounded-xl shadow-lg shadow-blue-500/20" onClick={() => setEditingParamsStepId(null)}>
+              <div className="flex gap-3 border-t border-theme-border bg-slate-50 p-6">
+                <Button variant="primary" className="min-h-11 flex-1 rounded-xl shadow-lg shadow-blue-500/20" onClick={() => setEditingParamsStepId(null)}>
                   保存并应用
                 </Button>
               </div>

@@ -691,32 +691,32 @@ const templates: TemplateDefinition[] = [
 
 export default function TemplateLibrary({ onUseTemplate, onOpenHelp }: TemplateLibraryProps) {
   return (
-    <div className="p-8 pb-16 bg-theme-bg min-h-[calc(100vh-60px)] font-sans text-theme-ink flex flex-col items-center">
-      <div className="w-full max-w-5xl">
-        <header className="mb-8 flex items-end justify-between">
-          <div>
+    <div className="flex-1 w-full overflow-y-auto bg-theme-bg px-4 py-4 font-sans text-theme-ink sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10">
+      <div className="mx-auto w-full max-w-[1360px]">
+        <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold mb-2">场景模板库</h1>
             <p className="text-theme-muted text-[13px] max-w-2xl leading-relaxed">
               沉淀行业场景方案与最佳实践组合，用于快速创建策略实例。模板表达的是“如何组合规则与参数”，不是基础元数据或公共规则的另一份主定义。
             </p>
           </div>
-          <button 
+          <button
             onClick={onOpenHelp}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors shrink-0"
+            className="inline-flex min-h-9 items-center justify-center gap-2 self-start rounded-lg border border-blue-100 bg-blue-50 px-3 text-[12px] font-bold text-blue-600 transition-colors hover:bg-blue-100 shrink-0"
           >
             <BookOpen className="w-3.5 h-3.5" /> 模板使用说明
           </button>
         </header>
 
         {/* Template Positioning Guide */}
-        <div className="mb-8 p-5 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl text-white flex items-start gap-4 shadow-xl border border-white/5 relative overflow-hidden">
+        <div className="relative mb-8 flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br from-slate-800 to-slate-900 p-5 text-white shadow-xl sm:flex-row sm:items-start">
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-xl"></div>
           <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
             <LayoutGrid className="w-5 h-5 text-indigo-400" />
           </div>
           <div className="flex-1 relative z-10">
             <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">方案模板定位：复用组合方案，创建新的策略实例</h4>
-            <div className="grid grid-cols-2 gap-8 mt-3">
+            <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
               <div className="text-[12px] text-white/60 leading-relaxed">
                 <b className="text-white/80 block mb-1 underline decoration-indigo-500/50 underline-offset-4">模板沉淀的是场景方案，不是底层资产</b>
                 模板负责沉淀行业经验、适用前提和推荐组合方式，优先复用公共规则与因子，而不是演变成另一套独立规则库或元数据库。
@@ -729,18 +729,18 @@ export default function TemplateLibrary({ onUseTemplate, onOpenHelp }: TemplateL
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-5">
           {templates.map(tpl => (
             <Card key={tpl.id} className="p-0 overflow-hidden flex flex-col group border-theme-border hover:border-theme-primary/30 transition-all duration-300 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] bg-theme-card">
               <div className="p-6 flex flex-col h-full relative">
                 <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-current to-transparent opacity-[0.03] rounded-bl-[100%] ${tpl.color}`} />
                 
-                <div className="flex items-start gap-4 mb-3 relative z-10">
-                  <div className={`w-12 h-12 rounded-[12px] flex items-center justify-center shrink-0 ${tpl.bgColor} ${tpl.color}` }>
+                <div className="relative z-10 mb-3 flex items-start gap-4">
+                  <div className={`h-12 w-12 shrink-0 rounded-[12px] flex items-center justify-center ${tpl.bgColor} ${tpl.color}` }>
                      <tpl.icon className="w-6 h-6 stroke-2" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
                       <h3 className="font-semibold text-base text-theme-ink">{tpl.name}</h3>
                       <Badge variant="neutral" className={`${tpl.color} border-current bg-white px-1.5 py-0 border`}>
                         {tpl.category}

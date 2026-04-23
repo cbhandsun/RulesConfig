@@ -9,7 +9,7 @@ export function Card({ className = '', children, ...props }: React.HTMLAttribute
 }
 
 export function Button({ variant = 'primary', className = '', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'accent' }) {
-  const baseStyle = "inline-flex items-center justify-center rounded-[6px] text-[13px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/50 disabled:opacity-50 disabled:pointer-events-none ring-offset-theme-card h-8 px-4 py-2";
+  const baseStyle = "inline-flex min-h-8 items-center justify-center rounded-[6px] px-4 text-[13px] font-medium leading-none transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/50 disabled:pointer-events-none disabled:opacity-50 ring-offset-theme-card shrink-0";
   const variants = {
     primary: "bg-theme-primary text-white hover:bg-theme-primary-hover",
     secondary: "bg-white/10 text-white hover:bg-white/20",

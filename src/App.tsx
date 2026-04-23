@@ -71,9 +71,9 @@ function App() {
 
   const navItems = [
     { key: 'DASHBOARD', label: '策略实例中心', description: '实例层 · 总览与编辑入口', active: currentView === 'DASHBOARD' || currentView === 'EDITOR' },
-    { key: 'RULES', label: '全局规则库', description: '规则资产层 · 公共规则组件', active: currentView === 'RULES' },
     { key: 'METADATA', label: '元数据治理', description: '语义底座层 · 对象/属性/动作/因子', active: currentView === 'METADATA' },
     { key: 'FACTORS', label: '因子工作台', description: '元数据子域 · 同源因子主数据', active: currentView === 'FACTORS' },
+    { key: 'RULES', label: '全局规则库', description: '规则资产层 · 公共规则组件', active: currentView === 'RULES' },
     { key: 'TEMPLATES', label: '场景模板库', description: '场景方案层 · 模板创建实例', active: currentView === 'TEMPLATES' },
   ] as const;
   const [activeStrategyId, setActiveStrategyId] = useState<string | null>(null);

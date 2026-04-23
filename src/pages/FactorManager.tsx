@@ -75,43 +75,43 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
   };
 
   return (
-    <div className="p-8 pb-16 bg-theme-bg min-h-[calc(100vh-60px)] font-sans text-theme-ink flex flex-col items-center">
-      <div className="w-full max-w-5xl">
-        <header className="mb-6 flex items-end justify-between">
-          <div>
+    <div className="flex-1 w-full overflow-y-auto bg-theme-bg px-4 py-4 font-sans text-theme-ink sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10">
+      <div className="mx-auto w-full max-w-[1360px]">
+        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold mb-2">因子工作台</h1>
-            <p className="text-theme-muted text-[13px] max-w-2xl leading-relaxed">
+            <p className="max-w-2xl text-[13px] leading-relaxed text-theme-muted">
               元数据治理下的专业子域视图，用于维护同一份因子主数据。这里管理因子公式、归一化方式、适用对象与动作约束，而不是创建第二套独立真相。
               <button
                 onClick={() => setShowWeightGuide(true)}
-                className="ml-2 text-theme-primary hover:underline font-medium inline-flex items-center gap-1"
+                className="ml-0 mt-2 inline-flex items-center gap-1 font-medium text-theme-primary hover:underline sm:ml-2 sm:mt-0"
               >
                 如何计算权重分值?
               </button>
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button 
+          <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+            <button
               onClick={onOpenHelp}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors"
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-[12px] font-bold text-blue-600 transition-colors hover:bg-blue-100"
             >
               <BookOpen className="w-3.5 h-3.5" /> 因子治理说明
             </button>
-            <Button variant="primary" className="gap-2" onClick={() => setIsCreating(true)}>
+            <Button variant="primary" className="min-h-9 gap-2" onClick={() => setIsCreating(true)}>
               <Plus className="w-4 h-4" /> 新建因子
             </Button>
           </div>
         </header>
 
         {/* Factor Governance Guide */}
-        <div className="mb-8 p-5 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl text-white flex items-start gap-4 shadow-xl border border-white/5 relative overflow-hidden">
+        <div className="relative mb-8 flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br from-slate-800 to-slate-900 p-5 text-white shadow-xl sm:flex-row sm:items-start">
           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full -mr-16 -mt-16 blur-xl"></div>
           <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0">
             <Database className="w-5 h-5 text-purple-400" />
           </div>
           <div className="flex-1 relative z-10">
             <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">因子治理原则：专业工作台编辑，同源主数据回写</h4>
-            <div className="grid grid-cols-2 gap-8 mt-3">
+            <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
               <div className="text-[12px] text-white/60 leading-relaxed">
                 <b className="text-white/80 block mb-1 underline decoration-purple-500/50 underline-offset-4">元数据子域，不是第二套资产库</b>
                 因子属于元数据资产的一部分，本页只是因子域的专业工作台。所有编辑都应回写同一份因子主数据，避免“元数据一份、因子集一份”的双真相结构。
@@ -125,8 +125,8 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
         </div>
 
         {/* Filters */}
-        <div className="bg-white border border-theme-border rounded-[10px] p-2 flex items-center justify-between mb-6 shadow-sm overflow-hidden">
-          <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth">
+        <div className="mb-6 flex flex-col gap-3 overflow-hidden rounded-[10px] border border-theme-border bg-white p-2 shadow-sm md:flex-row md:items-center md:justify-between">
+          <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth md:min-w-0">
             {['ALL', 'LOCATION', 'INVENTORY', 'RESOURCE', 'TASK', 'CONTAINER', 'LOAD'].map(tab => (
               <button
                 key={tab}
@@ -146,7 +146,7 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
               </button>
             ))}
           </div>
-          <div className="relative w-48 ml-4 shrink-0 pr-2">
+          <div className="relative w-full shrink-0 md:ml-4 md:w-56 lg:w-64 md:pr-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-theme-muted" />
             <Input 
               placeholder="搜索因子 ID、名称" 
@@ -255,10 +255,10 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
               <button onClick={() => setIsCreating(false)} className="text-theme-muted hover:text-theme-ink transition-colors">✕</button>
             </div>
             <div className="px-6 py-4 space-y-4">
-               <div className="grid grid-cols-2 gap-3">
+               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                  <div>
                    <label className="text-[11px] text-theme-muted font-semibold uppercase tracking-wider block mb-1.5">因子唯一标识 (ID)</label>
-                   <Input 
+                   <Input
                      placeholder="e.g. F_DIST_PATH"
                      value={newFactor.id || ''}
                      onChange={(e) => setNewFactor({ ...newFactor, id: e.target.value.toUpperCase() })}
@@ -404,7 +404,7 @@ export default function FactorManager({ onOpenHelp }: FactorManagerProps) {
                 </p>
               </section>
 
-              <section className="grid grid-cols-2 gap-8">
+              <section className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                 <div>
                   <h5 className="text-[12px] font-bold text-theme-ink mb-2 uppercase tracking-tight">升序排列 (ASC)</h5>
                   <div className="text-[12px] text-theme-muted space-y-2">

@@ -15,6 +15,14 @@ interface DashboardProps {
 export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, onOpenHelp }: DashboardProps) {
   const [activeTab, setActiveTab] = React.useState<StrategyCategory | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = React.useState('');
+  const headerScrollRef = React.useRef<HTMLDivElement>(null);
+  const bodyScrollRef = React.useRef<HTMLDivElement>(null);
+
+  const syncScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (headerScrollRef.current) {
+      headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  };
 
   const tabs: { label: string; value: StrategyCategory | 'ALL' }[] = [
     { label: '全部场景', value: 'ALL' },
@@ -47,20 +55,21 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
   }, [strategies]);
 
   return (
-    <div className="flex-1 p-6 flex flex-col gap-6 w-full max-w-[1024px] mx-auto overflow-hidden">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="flex-1 w-full overflow-y-auto bg-theme-bg px-4 sm:px-6 lg:px-8 xl:px-10">
+      <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-6 py-4 sm:py-6 lg:py-8 xl:py-10">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
           <h1 className="text-[18px] font-medium text-theme-ink tracking-tight m-0">策略实例中心</h1>
           <p className="text-[12px] text-theme-muted mt-1">实例层总览：查看当前生效与草稿策略实例，并从这里进入编辑或仿真验证。</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button 
+        <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+          <button
             onClick={onOpenHelp}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-[12px] font-bold text-blue-600 transition-colors hover:bg-blue-100"
           >
             <BookOpen className="w-3.5 h-3.5" /> 实例层说明
           </button>
-          <Button onClick={onCreate} className="gap-2">
+          <Button onClick={onCreate} className="min-h-9 gap-2">
             <Plus className="w-4 h-4" /> 新建策略实例
           </Button>
         </div>
@@ -84,7 +93,7 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card className="p-4 border-theme-border bg-white">
           <div className="text-[11px] text-theme-muted uppercase tracking-wider">策略场景</div>
           <div className="mt-2 text-[22px] font-bold text-theme-ink">{portfolioStats.strategies}</div>
@@ -107,49 +116,66 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
         </Card>
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-b border-theme-border pb-4">
-        <div className="flex gap-2">
-          {tabs.map(tab => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              className={`px-4 py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
-                activeTab === tab.value 
-                  ? 'bg-theme-primary text-white' 
-                  : 'text-theme-ink hover:bg-theme-pill'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div className="relative w-64">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted" />
-          <Input 
-            placeholder="搜索策略名称 / 货主..." 
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
+      <div className="flex flex-col gap-0">
+        <div className="sticky top-0 z-30 -mx-4 bg-theme-bg px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10">
+          <div className="bg-theme-bg/95 backdrop-blur-sm">
+            <div className="flex flex-col gap-4 border-b border-theme-border pb-4 pt-0 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {tabs.map(tab => (
+                  <button
+                    key={tab.value}
+                    onClick={() => setActiveTab(tab.value)}
+                    className={`px-4 py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
+                      activeTab === tab.value 
+                        ? 'bg-theme-primary text-white' 
+                        : 'text-theme-ink hover:bg-theme-pill'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="relative w-full sm:w-72 lg:w-64">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted" />
+                <Input 
+                  placeholder="搜索策略名称 / 货主..." 
+                  className="pl-9"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
 
-      <Card className="overflow-hidden flex-1 overflow-y-auto">
-        <div className="overflow-x-auto">
-          {/* Dashboard Table represents the Global Strategy Matrix */}
-          <table className="w-full text-left">
-            <thead className="bg-[#F8F9FA] text-theme-muted font-semibold text-[11px] uppercase tracking-wider border-b border-theme-border">
-              <tr>
-                <th className="px-4 py-4 w-20 text-center">系统优选</th>
-                <th className="px-4 py-4 w-64">全局策略大场景 (Strategy Matrix)</th>
-                <th className="px-4 py-4">核心驱动对象</th>
-                <th className="px-4 py-4">业务上下文匹配 (Business Context)</th>
-                <th className="px-4 py-4 w-24">版本</th>
-                <th className="px-4 py-4 w-24">状态</th>
-                <th className="px-4 py-4 text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-theme-border text-[13px] bg-white">
+          <div 
+            ref={headerScrollRef}
+            className="overflow-x-auto scrollbar-none border-x border-theme-border bg-[#F8F9FA] rounded-t-[10px]"
+          >
+            <table className="min-w-[1120px] w-full text-left">
+              <thead className="text-theme-muted font-semibold text-[11px] uppercase tracking-wider border-b border-theme-border shadow-[inset_0_-1px_0_0_rgba(226,232,240,1)]">
+                <tr>
+                  <th className="px-4 py-4 w-20 text-center">系统优选</th>
+                  <th className="px-4 py-4 w-64">全局策略大场景 (Strategy Matrix)</th>
+                  <th className="px-4 py-4">核心驱动对象</th>
+                  <th className="px-4 py-4">业务上下文匹配 (Business Context)</th>
+                  <th className="px-4 py-4 w-24">版本</th>
+                  <th className="px-4 py-4 w-24">状态</th>
+                  <th className="px-4 py-4 text-right pr-6">操作</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+
+        <Card className="overflow-hidden bg-white rounded-t-none border-t-0 shadow-none border-x border-b border-theme-border">
+          <div 
+            ref={bodyScrollRef}
+            onScroll={syncScroll}
+            className="overflow-x-auto [scrollbar-gutter:stable_both-edges]"
+          >
+            {/* Dashboard Table represents the Global Strategy Matrix */}
+            <table className="min-w-[1120px] w-full text-left">
+              <tbody className="divide-y divide-theme-border text-[13px] bg-white">
               {filteredStrategies.sort((a,b) => b.priority - a.priority).map((strategy) => {
                 const strategyRules = strategy.rules;
                 const strategySteps = strategyRules.flatMap(rule => rule.steps);
@@ -157,14 +183,14 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
                 const transitionSummary = Array.from(new Set(strategySteps.map(step => `${getEffectiveInputSubject(step, strategy.primarySubject)}→${getEffectiveOutputSubject(step, strategy.primarySubject)}`))).slice(0, 2);
 
                 return (
-                <tr key={strategy.id} className="hover:bg-blue-50/20 transition-colors group">
+                <tr key={strategy.id} className="group transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-blue-50/30">
                   <td className="px-4 py-4 text-center">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-500 font-mono text-[11px] font-bold group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
                       {strategy.priority}
                     </span>
                   </td>
                   <td className="px-4 py-4 font-medium text-theme-ink">
-                    <button 
+                    <button
                       onClick={() => onEdit(strategy.id)}
                       className="hover:text-theme-primary transition-colors cursor-pointer text-left focus:outline-none flex flex-col"
                     >
@@ -185,14 +211,14 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
                     </span>
                   </td>
                    <td className="px-4 py-4">
-                     <div className="flex flex-col gap-2 min-w-[320px]">
+                     <div className="flex flex-col gap-2 min-w-[260px] lg:min-w-[320px]">
                        <div className="flex items-start gap-2 text-[12px] group/scene relative">
                          <Info className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
                          <span className="text-theme-ink/80 line-clamp-3 leading-relaxed font-medium transition-all group-hover/scene:line-clamp-none bg-white z-10" title={strategy.scenario}>
                            {strategy.scenario}
                          </span>
                        </div>
-                       <div className="flex items-center gap-3">
+                       <div className="flex flex-wrap items-center gap-2">
                          <div className="flex items-center gap-1.5 text-[10px] text-theme-muted font-bold font-mono">
                            <span className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">货主: {strategy.owner}</span>
                          </div>
@@ -225,13 +251,13 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
                       {strategy.status === 'ACTIVE' ? '执行中' : '已停用'}
                     </Badge>
                   </td>
-                  <td className="px-4 py-4 flex flex-col items-end gap-2">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" className="!h-8 px-3 gap-2 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100" onClick={() => onEdit(strategy.id)}>
-                        <Edit2 className="w-3.5 h-3.5" /> 编辑实例
+                  <td className="px-4 py-4">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Button variant="ghost" className="min-h-8 min-w-[108px] gap-2 border border-blue-100 bg-blue-50 px-3 text-blue-600 hover:bg-blue-100" onClick={() => onEdit(strategy.id)}>
+                        <Edit2 className="w-3.5 h-3.5 shrink-0" /> 编辑实例
                       </Button>
-                      <Button variant="accent" className="!h-8 px-3 gap-2" onClick={() => onSimulate(strategy.id)}>
-                        <Play className="w-3.5 h-3.5" /> 仿真验证
+                      <Button variant="accent" className="min-h-8 min-w-[108px] gap-2 px-3" onClick={() => onSimulate(strategy.id)}>
+                        <Play className="w-3.5 h-3.5 shrink-0" /> 仿真验证
                       </Button>
                     </div>
                   </td>
@@ -249,6 +275,8 @@ export default function Dashboard({ strategies, onEdit, onSimulate, onCreate, on
           </table>
         </div>
       </Card>
+      </div>
+      </div>
     </div>
   );
 }

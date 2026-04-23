@@ -886,7 +886,7 @@ export default function MetadataCenter({ strategies, onOpenHelp }: MetadataCente
   );
 
   const renderObjectView = () => (
-    <div className="grid grid-cols-[280px_1fr] gap-6 items-start">
+    <div className="grid grid-cols-1 gap-6 items-start xl:grid-cols-[280px_minmax(0,1fr)]">
       <Card className="sticky top-6 p-4 bg-white">
         <div className="mb-4 text-[13px] font-semibold text-theme-ink">业务对象</div>
         <div className="space-y-2">
@@ -1925,10 +1925,10 @@ export default function MetadataCenter({ strategies, onOpenHelp }: MetadataCente
   };
 
   return (
-    <div className="min-h-[calc(100vh-60px)] overflow-y-auto bg-theme-bg p-8 pb-16 font-sans text-theme-ink flex flex-col items-center">
-      <div className="w-full max-w-7xl space-y-6">
-        <header className="flex items-end justify-between gap-6">
-          <div>
+    <div className="flex-1 w-full overflow-y-auto bg-theme-bg px-4 py-4 font-sans text-theme-ink sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10">
+      <div className="mx-auto w-full max-w-[1360px] space-y-6">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
             <h1 className="mb-2 text-2xl font-semibold">元数据治理中心</h1>
             <p className="max-w-4xl text-[13px] leading-relaxed text-theme-muted">
               语义底座层工作台。这里治理对象、属性、动作、因子与覆盖分析，并尽量从真实规则结构推导业务决策和 Step 模式，而不是维护与运行事实平行的第二套真相。
@@ -1936,13 +1936,13 @@ export default function MetadataCenter({ strategies, onOpenHelp }: MetadataCente
           </div>
           <button
             onClick={onOpenHelp}
-            className="shrink-0 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-[12px] font-bold text-blue-600 transition-colors hover:bg-blue-100"
+            className="inline-flex min-h-9 items-center justify-center gap-2 self-start rounded-lg border border-blue-100 bg-blue-50 px-3 text-[12px] font-bold text-blue-600 transition-colors hover:bg-blue-100 shrink-0"
           >
             <BookOpen className="h-3.5 w-3.5" /> 语义底座说明
           </button>
         </header>
 
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map(card => {
             const Icon = card.icon;
             return (
@@ -1955,8 +1955,8 @@ export default function MetadataCenter({ strategies, onOpenHelp }: MetadataCente
         </div>
 
         <Card className="p-4 bg-white">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {governanceViews.map(view => (
                 <button
                   key={view.key}

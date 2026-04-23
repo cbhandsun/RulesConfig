@@ -88,10 +88,10 @@ export default function RuleLibrary({
   };
 
   return (
-    <div className="p-8 pb-16 bg-theme-bg min-h-[calc(100vh-60px)] font-sans text-theme-ink flex flex-col items-center overflow-y-auto">
-      <div className="w-full max-w-5xl">
-        <header className="mb-6 flex items-end justify-between">
-          <div>
+    <div className="flex-1 w-full overflow-y-auto bg-theme-bg px-4 py-4 font-sans text-theme-ink sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10">
+      <div className="mx-auto w-full max-w-[1360px]">
+        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
                <Layers className="w-5 h-5 text-theme-primary" />
                <h1 className="text-2xl font-bold tracking-tight">全局规则库</h1>
@@ -100,28 +100,28 @@ export default function RuleLibrary({
               平台公共规则组件的主归口。这里管理跨策略复用的公共规则资产，同时区分展示策略实例中的私有规则，避免把实例层内容误认为公共规则主数据。
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button 
+          <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+            <button
               onClick={onOpenHelp}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors"
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-[12px] font-bold text-blue-600 transition-colors hover:bg-blue-100"
             >
               <BookOpen className="w-3.5 h-3.5" /> 规则资产说明
             </button>
-            <Button variant="primary" className="gap-2 shadow-lg shadow-theme-primary/20" onClick={handleCreateIndependentRule}>
+            <Button variant="primary" className="min-h-9 gap-2 shadow-lg shadow-theme-primary/20" onClick={handleCreateIndependentRule}>
               <Plus className="w-4 h-4" /> 新建公共规则
             </Button>
           </div>
         </header>
 
         {/* Rule Asset Guide Banner */}
-        <div className="mb-8 p-5 bg-gradient-to-br from-blue-900 to-indigo-950 rounded-2xl text-white flex items-start gap-4 shadow-xl border border-white/5 relative overflow-hidden">
+        <div className="relative mb-8 flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br from-blue-900 to-indigo-950 p-5 text-white shadow-xl sm:flex-row sm:items-start">
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-24 -mt-24 blur-3xl"></div>
           <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5 text-blue-300" />
           </div>
           <div className="flex-1 relative z-10">
             <h4 className="text-[14px] font-bold tracking-wide uppercase opacity-90">规则资产分层：公共规则沉淀复用，实例规则承接落地</h4>
-            <div className="grid grid-cols-2 gap-8 mt-3">
+            <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
               <div className="text-[12px] text-white/60 leading-relaxed">
                 <b className="text-white/80 block mb-1">公共规则是规则资产层主真相</b>
                 在这里维护的独立规则应作为平台公共组件被多个策略实例复用，它们引用元数据治理提供的对象、属性、动作和因子，而不是重新造一套底层资产。
@@ -135,8 +135,8 @@ export default function RuleLibrary({
         </div>
 
         {/* Filters */}
-        <div className="bg-white border border-theme-border rounded-[12px] p-2 flex items-center justify-between mb-6 shadow-sm">
-          <div className="flex gap-1">
+        <div className="mb-6 flex flex-col gap-3 rounded-[12px] border border-theme-border bg-white p-2 shadow-sm md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap gap-1 overflow-x-auto md:overflow-visible">
             {[
               { id: 'ALL', label: '全部规则视图' },
               { id: 'INDEPENDENT', label: '公共规则资产' },
@@ -155,7 +155,7 @@ export default function RuleLibrary({
               </button>
             ))}
           </div>
-          <div className="relative w-64 pr-2">
+          <div className="relative w-full md:w-72 md:pr-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-theme-muted" />
             <Input 
               placeholder="搜索规则 ID、名称或意图..." 
@@ -172,9 +172,9 @@ export default function RuleLibrary({
             <Card key={`${rule.id}-${idx}`} className={`p-0 overflow-hidden flex flex-col border-theme-border hover:border-theme-primary/30 transition-all duration-300 bg-white ${rule.strategyId === 'INDEPENDENT' ? 'ring-1 ring-blue-500/20 shadow-[0_4px_24px_rgba(0,100,250,0.05)]' : ''}`}>
               <div className="flex">
                 <div className={`w-[4px] shrink-0 ${rule.enabled ? 'bg-theme-success' : 'bg-[#E5E5EA]'}`}></div>
-                <div className="p-5 flex-1 w-full justify-between flex items-start gap-4">
-                  <div className="flex-1">
-                    <div className="flex gap-3 items-center mb-1.5">
+                <div className="flex w-full flex-col gap-4 p-5 sm:p-6 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2 sm:gap-3">
                       <h3 className="font-semibold text-[15px] text-theme-ink">{rule.name}</h3>
                       <Badge variant={rule.enabled ? 'neutral' : 'warning'} className="bg-[#F8F9FA] border-theme-border text-[10px] py-0">
                         {rule.enabled ? 'ACTIVE' : 'DRAFT'}
@@ -186,11 +186,11 @@ export default function RuleLibrary({
                       {rule.description || '无详细业务说明'}
                     </p>
 
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-wrap items-center gap-3 lg:gap-6">
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] text-theme-muted font-medium uppercase tracking-wider">准入条件:</span>
                         {rule.matchingCriteria && rule.matchingCriteria.length > 0 ? (
-                           <div className="flex gap-1">
+                           <div className="flex flex-wrap gap-1">
                              {rule.matchingCriteria.slice(0, 2).map((mc, i) => (
                                <span key={i} className="text-[11px] bg-theme-bg text-theme-ink px-1.5 py-0.5 rounded border border-theme-border border-dashed font-mono">
                                  {mc.field} {mc.operator} '{mc.value}'
@@ -218,7 +218,7 @@ export default function RuleLibrary({
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 gap-2 self-center">
+                  <div className="flex shrink-0 flex-wrap gap-2 self-start xl:self-center">
                     <Button 
                       variant="outline" 
                       className="h-8 px-3 text-[12px] gap-1 bg-white hover:bg-slate-50 transition-all active:scale-95"
