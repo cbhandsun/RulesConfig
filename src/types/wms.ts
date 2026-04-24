@@ -77,6 +77,8 @@ export type RuleStepAction =
   | 'RELEASE'
   | 'REDIRECT';
 
+export type ResourceLockType = 'SOFT' | 'HARD';
+
 export interface StepInputBinding {
   stepId: string;
   alias: string;
@@ -116,6 +118,20 @@ export interface RuleStep {
     timeoutMs?: number;          // 步骤超时，超时触发 failoverAction
     maxOutputCount?: number;     // 最终输出数量上限
   };
+  resourceLocking?: {
+    lockType: ResourceLockType;      // SOFT=可抢占（警告），HARD=排他（阻断）
+    acquireOnEntry: boolean;         // 步骤开始时对输出候选加锁
+    releaseOnSuccess: boolean;       // 步骤成功后释放锁
+    releaseOnFailover: boolean;      // 步骤 failover 时回滚并释放锁
+    lockTtlMs?: number;              // 仅 SOFT 有效，超时自动释放
+  };
+  costOptimization?: {
+    enabled: boolean;
+    objective: 'MINIMIZE_TOTAL_COST' | 'MINIMIZE_LABOR' | 'MINIMIZE_EQUIPMENT' | 'BALANCE';
+    costDimensionIds: string[];      // 关联的 CostDimension IDs
+    maxAcceptableCost?: number;      // 单次操作成本上限（¥）
+    costWeightInSorter?: number;     // 成本混入排序权重 0-100（越高越倾向成本最优）
+  };
 }
 
 export type StrategyRuleType = 'DIMENSION' | 'GATE';
@@ -132,6 +148,7 @@ export interface StrategyRule {
   matchingCriteria: MatchingCondition[];
   steps: RuleStep[];
   branches?: { id: string; conditionLabel: string; targetRuleId: string; criteria: MatchingCondition[] }[]; // 网关分支定义
+  sourceRuleId?: string; // 来自独立规则库时，指向源规则 ID
 }
 
 export interface GlobalGuardrail {
@@ -142,11 +159,13 @@ export interface GlobalGuardrail {
   type: 'BLOCK' | 'WARNING';
   target: FactorTarget;
   criteria: MatchingCondition[];
+  sourceGuardrailId?: string; // 从全局库挂载时记录来源
 }
 
 export interface StrategyDetail extends Strategy {
   rules: StrategyRule[];
-  guardrails?: GlobalGuardrail[]; // 该策略绑定的全局合规拦截规则
+  guardrails?: GlobalGuardrail[];
+  rollbackPolicy?: 'FULL' | 'PARTIAL' | 'NONE'; // 步骤失败时的资源锁回滚策略
 }
 
 export type FactorTarget = 'CONTEXT' | 'LOCATION' | 'INVENTORY_LOT' | 'EQUIPMENT' | 'OPERATOR' | 'CARRIER' | 'ORDER_LINE' | 'STAGING_AREA';
@@ -230,6 +249,18 @@ export interface FactorNormalization {
 
 export type FactorType = 'STATIC' | 'DYNAMIC' | 'ML_SCORE';
 
+export type CostDimensionType = 'LABOR' | 'EQUIPMENT' | 'INVENTORY_RISK' | 'SLA_PENALTY' | 'CUSTOM';
+
+export interface CostDimension {
+  id: string;
+  name: string;
+  type: CostDimensionType;
+  unit: string;       // 如 ¥/min, ¥/km, ¥/unit/day, ¥/单
+  baseRate: number;   // 基础费率
+  formula?: string;   // 自定义公式（可选）
+  enabled: boolean;
+}
+
 export interface Factor {
   id: string;
   name: string;
@@ -263,4 +294,8 @@ export interface Factor {
   businessMeaning?: string;
   decisionPurpose?: string;
   interpretationHint?: string;
+  costMetadata?: {
+    costDimensionId: string;   // 关联的 CostDimension ID
+    costMultiplier: number;    // 该因子对应的成本系数
+  };
 }

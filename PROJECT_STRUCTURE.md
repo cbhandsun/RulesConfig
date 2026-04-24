@@ -45,5 +45,10 @@
 - [mock.ts](file:///d:/DEV/WorkSapce/Playgroud/RulesConfig/src/data/mock.ts): 包含了丰富的业务案例，如“AI 智能波次”、“任务协同”等。
 - [ui/](file:///d:/DEV/WorkSapce/Playgroud/RulesConfig/src/components/ui/): 封装了符合工业审美的组件库。
 
+## 6. 延伸阅读
+
+> **注意**：本文档是项目的快速概览。完整的技术规范、类型定义、扩展指南及模拟引擎实现细节，请参阅权威参考文档：
+> **[docs/developer-guide.md](./docs/developer-guide.md)**
+
 ---
 *此文档由 AI 辅助生成，用于帮助开发者快速理解项目结构与业务逻辑。*

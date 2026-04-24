@@ -10,8 +10,8 @@ import React, { useState } from 'react';
  * 
  * 详细文档请参考根目录下的 PROJECT_STRUCTURE.md。
  */
-import { StrategyDetail, StrategyRule } from './types/wms';
-import { mockStrategies, mockIndependentRules } from './data/mock';
+import { StrategyDetail, StrategyRule, GlobalGuardrail } from './types/wms';
+import { mockStrategies, mockIndependentRules, mockGlobalGuardrails } from './data/mock';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
 import Simulator from './pages/Simulator';
@@ -67,6 +67,7 @@ const useToast = () => {
 function App() {
   const [strategies, setStrategies] = useState<StrategyDetail[]>(mockStrategies);
   const [independentRules, setIndependentRules] = useState<StrategyRule[]>(mockIndependentRules);
+  const [globalGuardrails, setGlobalGuardrails] = useState<GlobalGuardrail[]>(mockGlobalGuardrails);
   const [currentView, setCurrentView] = useState<'DASHBOARD' | 'EDITOR' | 'TEMPLATES' | 'LOGS' | 'FACTORS' | 'RULES' | 'METADATA'>('DASHBOARD');
 
   const navItems = [
@@ -211,11 +212,13 @@ function App() {
           />
         )}
         {currentView === 'EDITOR' && (
-          <Editor 
-            strategy={activeStrategy} 
+          <Editor
+            strategy={activeStrategy}
             allStrategies={strategies}
             independentRules={independentRules}
-            onBack={() => setCurrentView('DASHBOARD')} 
+            globalGuardrails={globalGuardrails}
+            onUpdateGlobalGuardrails={setGlobalGuardrails}
+            onBack={() => setCurrentView('DASHBOARD')}
             onSimulate={handleSimulate}
             onSave={handleSaveStrategy}
             onOpenHelp={() => setIsHelpOpen(true)}
@@ -231,11 +234,13 @@ function App() {
           <MetadataCenter strategies={strategies} onOpenHelp={() => setIsHelpOpen(true)} />
         )}
         {currentView === 'RULES' && (
-          <RuleLibrary 
-            strategies={strategies} 
+          <RuleLibrary
+            strategies={strategies}
             independentRules={independentRules}
-            onUpdateStrategy={handleSaveStrategy} 
+            globalGuardrails={globalGuardrails}
+            onUpdateStrategy={handleSaveStrategy}
             onUpdateIndependentRules={setIndependentRules}
+            onUpdateGlobalGuardrails={setGlobalGuardrails}
             onSimulate={handleSimulate}
             onOpenHelp={() => setIsHelpOpen(true)}
           />

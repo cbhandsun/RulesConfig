@@ -1,4 +1,4 @@
-import { StrategyDetail, Factor, StrategyRule, RuleStep } from '../types/wms';
+import { StrategyDetail, Factor, StrategyRule, RuleStep, CostDimension, GlobalGuardrail } from '../types/wms';
 import { getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction, getEffectiveStepType } from '../utils/stepSemantics';
 
 const normalizeStep = (step: RuleStep, strategyPrimarySubject: StrategyDetail['primarySubject']): RuleStep => ({
@@ -134,7 +134,9 @@ const rawStrategies = [
             failoverAction: 'PIPELINE_NEXT',
             flowControl: 'TERMINATE',
             config: { 'Max Search Radius (m)': 5, 'Battery Limit Penalty': 2 },
-            executionConstraints: { maxCandidates: 200, timeoutMs: 300 }
+            executionConstraints: { maxCandidates: 200, timeoutMs: 300 },
+            resourceLocking: { lockType: 'HARD', acquireOnEntry: true, releaseOnSuccess: true, releaseOnFailover: true },
+            costOptimization: { enabled: true, objective: 'MINIMIZE_EQUIPMENT', costDimensionIds: ['cd-equip', 'cd-labor'], costWeightInSorter: 30 }
           }
         ]
       }
@@ -150,6 +152,7 @@ const rawStrategies = [
     version: 'v4.2.0',
     status: 'ACTIVE',
     priority: 100,
+    rollbackPolicy: 'PARTIAL',
     guardrails: [
       {
         id: 'GR-EXPIRE-BLOCK',
@@ -218,7 +221,9 @@ const rawStrategies = [
             config: {
               "Strict Temperature Match": "TRUE",
               "Max Expiry Deviation": "10%"
-            }
+            },
+            resourceLocking: { lockType: 'SOFT', acquireOnEntry: true, releaseOnSuccess: true, releaseOnFailover: false, lockTtlMs: 5000 },
+            costOptimization: { enabled: true, objective: 'MINIMIZE_TOTAL_COST', costDimensionIds: ['cd-labor', 'cd-inv-risk', 'cd-sla'], maxAcceptableCost: 200 }
           }
         ]
       },
@@ -1646,7 +1651,8 @@ export const mockFactors: Factor[] = [
     normalization: { method: 'MIN_MAX_DESC', range: [0, 1000], outputUnit: 'm' },
     businessMeaning: '衡量设备去接下一单前需要额外空驶多远。',
     decisionPurpose: '帮助 step 优先把任务给顺路设备，降低空跑和设备浪费。',
-    interpretationHint: '值越小越好，说明下一单更顺路。'
+    interpretationHint: '值越小越好，说明下一单更顺路。',
+    costMetadata: { costDimensionId: 'cd-equip', costMultiplier: 1.5 }
   },
   {
     id: 'fact-staging-capacity',
@@ -1982,3 +1988,46 @@ const rawIndependentRules = [
 
 export const mockStrategies: StrategyDetail[] = rawStrategies.map(toStrategyDetail);
 export const mockIndependentRules: StrategyRule[] = rawIndependentRules.map(toIndependentRule);
+
+export const mockCostDimensions: CostDimension[] = [
+  { id: 'cd-labor',     name: '人工成本',     type: 'LABOR',          unit: '¥/min',      baseRate: 0.5,  enabled: true },
+  { id: 'cd-equip',    name: '设备折旧',     type: 'EQUIPMENT',      unit: '¥/km',       baseRate: 1.2,  enabled: true },
+  { id: 'cd-inv-risk', name: '库存持有风险', type: 'INVENTORY_RISK', unit: '¥/unit/day', baseRate: 0.08, enabled: true },
+  { id: 'cd-sla',      name: 'SLA违约罚款',  type: 'SLA_PENALTY',    unit: '¥/单',       baseRate: 50,   enabled: true },
+];
+
+export const mockGlobalGuardrails: GlobalGuardrail[] = [
+  {
+    id: 'gg-cold-chain', name: '冷链禁混存储',
+    description: '冷链区严禁存放常温商品，防止温度污染与合规违规',
+    active: true, type: 'BLOCK', target: 'LOCATION',
+    criteria: [
+      { id: 'gg-c1', field: '库位温区', operator: '==', value: 'FROZEN' },
+      { id: 'gg-c2', field: '货品温控要求', operator: '!=', value: 'FROZEN', logicalOperator: 'AND' },
+    ],
+  },
+  {
+    id: 'gg-fire-safety', name: '消防通道禁占',
+    description: '消防预留库位及紧急通道禁止任何上架与分配操作',
+    active: true, type: 'BLOCK', target: 'LOCATION',
+    criteria: [
+      { id: 'gg-f1', field: '库位标签', operator: 'CONTAINS', value: 'FIRE_ZONE' },
+    ],
+  },
+  {
+    id: 'gg-expiry-lock', name: '临期批次锁定',
+    description: '距效期 <= 30 天的批次触发强制拦截，禁止常规分配',
+    active: true, type: 'BLOCK', target: 'INVENTORY_LOT',
+    criteria: [
+      { id: 'gg-e1', field: '剩余效期天数', operator: '<=', value: '30' },
+    ],
+  },
+  {
+    id: 'gg-maintenance', name: '维保区域禁用',
+    description: '处于设备维护状态的区域库位自动进入禁用状态，触发预警',
+    active: false, type: 'WARNING', target: 'LOCATION',
+    criteria: [
+      { id: 'gg-m1', field: '库区状态', operator: '==', value: 'MAINTENANCE' },
+    ],
+  },
+];

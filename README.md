@@ -10,8 +10,9 @@ View your app in AI Studio: https://ai.studio/apps/5fa4f767-7326-49d7-a895-11555
 
 ## 项目指南
 
-- **[项目架构与业务理解](./PROJECT_STRUCTURE.md)**: 深入了解项目的技术栈、核心概念和业务逻辑。
-- **[高级配置指南](./STRATEGY_GUIDE.md)**: 业务专家的详细配置手册。
+
+- **[高级配置指南](./STRATEGY_GUIDE.md)**: 业务专家的详细配置手册，涵盖管线模式、成本优化、资源锁定等高级特性。
+- **[项目架构速览](./PROJECT_STRUCTURE.md)**: 项目定位与技术栈概览（建议结合开发者指南阅读）。
 
 ## Run Locally
 

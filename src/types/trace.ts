@@ -1,4 +1,4 @@
-import { FactorTarget } from './wms';
+import { FactorTarget, ResourceLockType, CostDimensionType } from './wms';
 
 export interface FilterTrace {
   filterId: string;
@@ -24,6 +24,8 @@ export interface CandidateTrace {
   totalScore: number;
   rank: number;
   selected: boolean;
+  costBreakdown?: CostBreakdown[];
+  estimatedTotalCost?: number;
 }
 
 export interface GuardrailHit {
@@ -45,6 +47,8 @@ export interface StepTrace {
   flowDecision: 'TERMINATE' | 'CONTINUE' | 'FAILOVER';
   durationMs: number;
   truncatedByConstraint?: 'MAX_CANDIDATES' | 'TIMEOUT' | 'MAX_OUTPUT';
+  lockEvents?: ResourceLockEvent[];
+  costSummary?: { totalEstimated: number; byDimension: CostBreakdown[] };
 }
 
 export interface RuleTrace {
@@ -72,4 +76,32 @@ export interface ExecutionTrace {
     topCandidates: CandidateTrace[];
   };
   decisionSummary: string;
+  resourceLockSummary?: {
+    acquired: number;
+    released: number;
+    conflicts: number;
+    rolledBack: number;
+  };
+  totalEstimatedCost?: number;
+  costBreakdownSummary?: CostBreakdown[];
+}
+
+export type LockEventType = 'ACQUIRE' | 'RELEASE' | 'ROLLBACK' | 'CONFLICT';
+
+export interface ResourceLockEvent {
+  eventType: LockEventType;
+  resourceId: string;
+  resourceType: FactorTarget;
+  lockType: ResourceLockType;
+  stepId: string;
+  ruleId: string;
+  conflictingStepId?: string;
+}
+
+export interface CostBreakdown {
+  dimensionId: string;
+  dimensionName: string;
+  type: CostDimensionType;
+  estimatedCost: number;
+  unit: string;
 }

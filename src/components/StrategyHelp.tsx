@@ -129,10 +129,16 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                  </div>
                  
                  {/* Tier 4 */}
-                 <div className="relative pl-10 pb-2">
+                 <div className="relative pl-10">
                     <div className="absolute left-[11px] top-1 w-2 h-2 rounded-full bg-orange-500 border-[3px] border-white ring-2 ring-orange-100"></div>
                     <h5 className="text-[12px] font-bold text-slate-800">控制项 D: 业务偏好评估 (Optimizers / Sorters)</h5>
                     <p className="text-[11px] text-slate-500 mt-1">权重算法。如最短动线、最先出库。负责在可达资源中择优。</p>
+                 </div>
+                 {/* Tier 5 */}
+                 <div className="relative pl-10 pb-2">
+                    <div className="absolute left-[11px] top-1 w-2 h-2 rounded-full bg-emerald-500 border-[3px] border-white ring-2 ring-emerald-100"></div>
+                    <h5 className="text-[12px] font-bold text-slate-800">控制项 E: 成本与资源保障 (Cost & Resource Safety)</h5>
+                    <p className="text-[11px] text-slate-500 mt-1">经济最优层。成本优化将人工/设备/SLA 罚款混入排序权重；资源锁定防止并发争用同一库位或设备。</p>
                  </div>
               </div>
             </section>
@@ -180,16 +186,24 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-blue-600">
                 <Layers className="w-5 h-5" />
-                <h4 className="text-[14px] font-black uppercase tracking-wider">执行编排：筛选与优选漏斗</h4>
+                <h4 className="text-[14px] font-black uppercase tracking-wider">执行编排：筛选、优选与保障</h4>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="text-[11px] font-black text-slate-400 mb-2 uppercase tracking-tight">第一层：硬性约束法则</div>
+                  <div className="text-[11px] font-black text-slate-400 mb-2 uppercase tracking-tight">第一层：硬性约束</div>
                   <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">通过 <b>Constraints(Filters)</b> 筛选。只有满足物理区、状态、属性等条件的候选者才能进入评估区。</p>
                 </div>
                 <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
                   <div className="text-[11px] font-black text-blue-400 mb-2 uppercase tracking-tight">第二层：多维算法优化</div>
                   <p className="text-[11px] text-blue-600 mt-2 leading-relaxed">通过 <b>Optimizers(Sorters)</b> 因子加权。在合格资源中，根据动线、周转率等因子评分择优。</p>
+                </div>
+                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                  <div className="text-[11px] font-black text-emerald-500 mb-2 uppercase tracking-tight">第三层：成本经济优化</div>
+                  <p className="text-[11px] text-emerald-700 mt-2 leading-relaxed">通过<b>成本优化面板</b>混入成本权重（0-100%）。将人工、设备折旧、库存持有风险、SLA罚款四维成本融入排序，实现经济最优决策。</p>
+                </div>
+                <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                  <div className="text-[11px] font-black text-orange-500 mb-2 uppercase tracking-tight">第四层：资源锁定保障</div>
+                  <p className="text-[11px] text-orange-700 mt-2 leading-relaxed">通过<b>资源锁定面板</b>防止并发争用。HARD 锁排他阻断候选，SOFT 锁预占式警告保留候选，并可配置跨步骤回滚策略防止死锁。</p>
                 </div>
               </div>
             </section>
@@ -216,7 +230,15 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                     <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-600 rounded">流转/过渡节点 (CONTINUE)</span>
                   </div>
                   <p className="text-[12px] text-slate-600 leading-relaxed">
-                    <b>管道流转组合：</b>当前节点不作为拦截层。它完成过滤和打分后，会将幸存的候选资源集合（如：所有1层楼的库位）<b>全量透传给下一个序列节点</b>继续加工。非常适合在巨量数据下做“预过滤清洗”。
+                    <b>管道流转组合：</b>当前节点不作为拦截层。它完成过滤和打分后，会将幸存的候选资源集合（如：所有1层楼的库位）<b>全量透传给下一个序列节点</b>继续加工。非常适合在巨量数据下做"预过滤清洗"。
+                  </p>
+                </div>
+                <div className="p-3 bg-purple-50/50 border border-purple-100 rounded-xl hover:bg-purple-50 transition-colors">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-600 rounded">条件跳转节点 (JUMP)</span>
+                  </div>
+                  <p className="text-[12px] text-slate-600 leading-relaxed">
+                    <b>非线性越迁：</b>满足特定匹配谓词（如订单类型、库存等级）后，<b>直接跳过中间规则</b>，路由到目标规则节点执行。适用于 VIP 直通、紧急业务绿色通道等非常规流程。
                   </p>
                 </div>
               </div>
@@ -319,6 +341,13 @@ export default function StrategyHelp({ isOpen, onClose, currentView }: StrategyH
                 <div className="flex items-center justify-between p-3 bg-orange-50 rounded-xl border border-orange-100">
                   <span className="text-[12px] font-bold text-orange-700">边界约束</span>
                   <span className="text-[10px] text-orange-400">不负责完整规则编排</span>
+                </div>
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[12px] font-bold text-emerald-700">成本维度关联</span>
+                    <span className="text-[10px] text-emerald-400">DYNAMIC 因子专属</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-600 leading-relaxed">DYNAMIC 类型的因子可绑定一个成本维度（如设备折旧），并配置费率系数。仿真时系统将因子实际值乘以费率和系数，计算出该候选的成本贡献，供成本优化步骤排序使用。</p>
                 </div>
               </div>
             </section>

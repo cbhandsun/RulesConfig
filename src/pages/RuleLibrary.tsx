@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StrategyDetail, StrategyRule, MatchingCondition } from '../types/wms';
+import { StrategyDetail, StrategyRule, MatchingCondition, GlobalGuardrail } from '../types/wms';
 import { createDefaultStep, getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction } from '../utils/stepSemantics';
 import { Button, Card, Badge, Input } from '../components/ui';
 import {
@@ -10,22 +10,27 @@ import {
 interface RuleLibraryProps {
   strategies: StrategyDetail[];
   independentRules: StrategyRule[];
+  globalGuardrails: GlobalGuardrail[];
   onUpdateStrategy: (updated: StrategyDetail) => void;
   onUpdateIndependentRules: (updated: StrategyRule[]) => void;
+  onUpdateGlobalGuardrails: (updated: GlobalGuardrail[]) => void;
   onSimulate: (id: string, ruleId?: string) => void;
   onOpenHelp: () => void;
 }
 
-export default function RuleLibrary({ 
-  strategies, 
-  independentRules, 
-  onUpdateStrategy, 
-  onUpdateIndependentRules, 
+export default function RuleLibrary({
+  strategies,
+  independentRules,
+  globalGuardrails,
+  onUpdateStrategy,
+  onUpdateIndependentRules,
+  onUpdateGlobalGuardrails,
   onSimulate,
-  onOpenHelp 
+  onOpenHelp
 }: RuleLibraryProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'ALL' | 'INDEPENDENT' | 'STRATEGY'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'INDEPENDENT' | 'STRATEGY' | 'GUARDRAILS'>('ALL');
+  const [newGuardrailDraft, setNewGuardrailDraft] = useState<{ name: string; description: string; type: 'BLOCK' | 'WARNING'; target: string } | null>(null);
   const [editingRule, setEditingRule] = useState<{ strategyId: string; rule: StrategyRule } | null>(null);
 
   // Flatten rules with their origin info for display
@@ -140,7 +145,8 @@ export default function RuleLibrary({
             {[
               { id: 'ALL', label: '全部规则视图' },
               { id: 'INDEPENDENT', label: '公共规则资产' },
-              { id: 'STRATEGY', label: '策略实例规则' }
+              { id: 'STRATEGY', label: '策略实例规则' },
+              { id: 'GUARDRAILS', label: `全局红线 (${globalGuardrails.length})` }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -166,8 +172,113 @@ export default function RuleLibrary({
           </div>
         </div>
 
+        {/* Global Guardrails Panel */}
+        {activeTab === 'GUARDRAILS' && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-red-50 border border-red-100 text-[12px] text-red-700 font-medium flex items-start gap-2">
+              <span className="text-red-500 mt-0.5">⚠</span>
+              全局红线具有最高优先级，会强制应用于所有引用它的策略。修改后需通知各策略维护方检查影响范围。
+            </div>
+            {globalGuardrails.map(gg => (
+              <div key={gg.id} className="bg-white border border-theme-border rounded-[12px] shadow-sm p-5 flex items-start gap-4">
+                <div className={`w-1 self-stretch rounded-full shrink-0 ${gg.active ? 'bg-red-500' : 'bg-slate-300'}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <h3 className="font-bold text-[14px] text-theme-ink">{gg.name}</h3>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${gg.type === 'BLOCK' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                      {gg.type === 'BLOCK' ? '强制阻断' : '强控预警'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">{gg.target}</span>
+                  </div>
+                  <p className="text-[12px] text-theme-muted mb-3">{gg.description}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {gg.criteria.map((c, i) => (
+                      <span key={i} className="text-[11px] font-mono bg-red-50 text-red-800 border border-red-100 px-2 py-0.5 rounded-lg">
+                        {c.field} {c.operator} {c.value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => onUpdateGlobalGuardrails(globalGuardrails.map(g => g.id === gg.id ? { ...g, active: !g.active } : g))}
+                    className={`w-10 h-6 rounded-full transition-colors relative ${gg.active ? 'bg-red-500' : 'bg-slate-200'}`}
+                    title={gg.active ? '停用' : '启用'}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${gg.active ? 'left-5' : 'left-1'}`} />
+                  </button>
+                  <button
+                    onClick={() => onUpdateGlobalGuardrails(globalGuardrails.filter(g => g.id !== gg.id))}
+                    className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                    title="删除"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {newGuardrailDraft ? (
+              <div className="bg-white border-2 border-dashed border-red-200 rounded-[12px] p-5 space-y-3">
+                <input
+                  autoFocus
+                  className="w-full h-9 px-3 rounded-lg border border-theme-border text-sm outline-none focus:border-red-400"
+                  placeholder="红线名称，例如：冷链禁混存储"
+                  value={newGuardrailDraft.name}
+                  onChange={e => setNewGuardrailDraft({ ...newGuardrailDraft, name: e.target.value })}
+                />
+                <input
+                  className="w-full h-9 px-3 rounded-lg border border-theme-border text-sm outline-none focus:border-red-400"
+                  placeholder="业务说明"
+                  value={newGuardrailDraft.description}
+                  onChange={e => setNewGuardrailDraft({ ...newGuardrailDraft, description: e.target.value })}
+                />
+                <div className="flex gap-2">
+                  <select
+                    className="h-9 px-3 rounded-lg border border-theme-border text-sm outline-none focus:border-red-400 bg-white"
+                    value={newGuardrailDraft.type}
+                    onChange={e => setNewGuardrailDraft({ ...newGuardrailDraft, type: e.target.value as 'BLOCK' | 'WARNING' })}
+                  >
+                    <option value="BLOCK">强制阻断 (BLOCK)</option>
+                    <option value="WARNING">强控预警 (WARNING)</option>
+                  </select>
+                  <input
+                    className="flex-1 h-9 px-3 rounded-lg border border-theme-border text-sm outline-none focus:border-red-400"
+                    placeholder="拦截对象，例如：LOCATION"
+                    value={newGuardrailDraft.target}
+                    onChange={e => setNewGuardrailDraft({ ...newGuardrailDraft, target: e.target.value })}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setNewGuardrailDraft(null)}>取消</Button>
+                  <Button variant="primary" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => {
+                    if (!newGuardrailDraft.name.trim()) return;
+                    const created: GlobalGuardrail = {
+                      id: `gg-${Date.now()}`,
+                      name: newGuardrailDraft.name,
+                      description: newGuardrailDraft.description,
+                      active: true,
+                      type: newGuardrailDraft.type,
+                      target: newGuardrailDraft.target as any,
+                      criteria: []
+                    };
+                    onUpdateGlobalGuardrails([...globalGuardrails, created]);
+                    setNewGuardrailDraft(null);
+                  }}>创建红线</Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setNewGuardrailDraft({ name: '', description: '', type: 'BLOCK', target: 'LOCATION' })}
+                className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold text-[13px] hover:border-red-400 hover:text-red-500 hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus className="w-5 h-5" /> 新建全局红线
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Rules Grid */}
-        <div className="grid grid-cols-1 gap-4">
+        {activeTab !== 'GUARDRAILS' && <div className="grid grid-cols-1 gap-4">
           {filteredRules.map((rule, idx) => (
             <Card key={`${rule.id}-${idx}`} className={`p-0 overflow-hidden flex flex-col border-theme-border hover:border-theme-primary/30 transition-all duration-300 bg-white ${rule.strategyId === 'INDEPENDENT' ? 'ring-1 ring-blue-500/20 shadow-[0_4px_24px_rgba(0,100,250,0.05)]' : ''}`}>
               <div className="flex">
@@ -260,7 +371,7 @@ export default function RuleLibrary({
               <p className="font-medium">未找到符合条件的业务规则，请调整过滤条件或新建规则。</p>
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Editing Modal */}

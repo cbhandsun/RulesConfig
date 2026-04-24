@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, RadarChart, ResponsiveContainer } from 'recharts';
-import { StrategyDetail, RuleStep, Factor, StrategyRule, FactorTarget, RuleStepAction, RuleStepType, StepInputBinding, ActionParamSchema, TriggerCondition, TriggerEventType, TrafficSplitConfig, MatchingCondition, ConditionType } from '../types/wms';
-import { mockFactors } from '../data/mock';
+import { StrategyDetail, RuleStep, Factor, StrategyRule, FactorTarget, RuleStepAction, RuleStepType, StepInputBinding, ActionParamSchema, TriggerCondition, TriggerEventType, TrafficSplitConfig, MatchingCondition, ConditionType, CostDimension, GlobalGuardrail } from '../types/wms';
+import { mockFactors, mockCostDimensions } from '../data/mock';
 import { allOperatorsGrouped, timeWindowOperators, getActionMeta, getActionParams, getAttributesByObject, getObjectMeta, subjectOptions } from '../data/metadata';
 import { Button, Card, Badge, Input } from '../components/ui';
 import { createDefaultStep, getEffectiveInputSubject, getEffectiveOutputSubject, getEffectiveStepAction, getEffectiveStepType } from '../utils/stepSemantics';
 import { validateStrategyGraph, ValidationResult } from '../utils/graphValidation';
-import { ArrowLeft, ArrowRight, Save, Play, Plus, X, ArrowDown, ChevronRight, Settings, PlusCircle, Search, ChevronDown, GitBranch, GitMerge, HelpCircle, BookOpen, Layers, Zap, Code, Filter, Info, LayoutGrid, Sparkles, Activity, ShieldCheck, ShieldAlert, Box, Workflow, AlertCircle, Link as LinkIcon, ArrowDownRight, Scale, Timer, Sliders, Bell, FlaskConical, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, Play, Plus, X, ArrowDown, ChevronRight, Settings, PlusCircle, Search, ChevronDown, GitBranch, GitMerge, HelpCircle, BookOpen, Layers, Zap, Code, Filter, Info, LayoutGrid, Sparkles, Activity, ShieldCheck, ShieldAlert, Box, Workflow, AlertCircle, Link as LinkIcon, ArrowDownRight, Scale, Timer, Sliders, Bell, FlaskConical, SlidersHorizontal, RotateCcw } from 'lucide-react';
 
 const calculateRadarData = (rule: StrategyRule) => {
   const text = JSON.stringify(rule).toLowerCase();
@@ -151,6 +151,8 @@ interface EditorProps {
   strategy: StrategyDetail | null;
   allStrategies: StrategyDetail[];
   independentRules?: StrategyRule[];
+  globalGuardrails?: GlobalGuardrail[];
+  onUpdateGlobalGuardrails?: (updated: GlobalGuardrail[]) => void;
   onBack: () => void;
   onSimulate: (id: string, ruleId?: string) => void;
   onSave: (strategy: StrategyDetail) => void;
@@ -245,7 +247,186 @@ function ExecutionConstraintsPanel({ step, onUpdate }: {
   );
 }
 
-export default function Editor({ strategy, allStrategies, independentRules = [], onBack, onSimulate, onSave, onOpenHelp }: EditorProps) {
+function ResourceLockingPanel({ step, onUpdate }: {
+  step: RuleStep;
+  onUpdate: (id: string, updates: Partial<RuleStep>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rl = step.resourceLocking;
+  const isConfigured = !!rl;
+  const isHard = rl?.lockType === 'HARD';
+  return (
+    <div className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors">
+        <div className="flex items-center gap-2 text-[11px] font-black text-slate-500 uppercase tracking-widest">
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          资源锁定
+          {isConfigured && (
+            <span className={`inline-flex items-center gap-1 border rounded-full px-2 py-0.5 text-[9px] font-black ml-1 ${isHard ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+              {isHard ? 'HARD' : 'SOFT'}
+            </span>
+          )}
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="border-t border-slate-100 px-4 py-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider w-16 shrink-0">锁定类型</span>
+            <div className="flex gap-1.5">
+              {(['SOFT', 'HARD'] as const).map(t => (
+                <button key={t} type="button"
+                  onClick={() => onUpdate(step.id, { resourceLocking: { lockType: t, acquireOnEntry: rl?.acquireOnEntry ?? true, releaseOnSuccess: rl?.releaseOnSuccess ?? true, releaseOnFailover: rl?.releaseOnFailover ?? true, lockTtlMs: rl?.lockTtlMs } })}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-black border transition-all ${rl?.lockType === t ? (t === 'HARD' ? 'bg-red-600 text-white border-red-600' : 'bg-amber-500 text-white border-amber-500') : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                >{t}</button>
+              ))}
+              {isConfigured && (
+                <button type="button" onClick={() => onUpdate(step.id, { resourceLocking: undefined })}
+                  className="px-2 py-1 rounded-lg text-[11px] font-black border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 transition-all ml-1">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+          {isConfigured && (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  { key: 'acquireOnEntry', label: '步骤启动时加锁' },
+                  { key: 'releaseOnSuccess', label: '成功后释放' },
+                  { key: 'releaseOnFailover', label: 'Failover 时回滚' },
+                ] as const).map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={!!rl?.[key]}
+                      onChange={e => onUpdate(step.id, { resourceLocking: { ...rl!, [key]: e.target.checked } })}
+                      className="w-3.5 h-3.5 rounded accent-blue-600" />
+                    <span className="text-[11px] text-slate-600">{label}</span>
+                  </label>
+                ))}
+              </div>
+              {rl?.lockType === 'SOFT' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider w-16 shrink-0">锁TTL</span>
+                  <input type="number" placeholder="如 5000" value={rl.lockTtlMs ?? ''}
+                    onChange={e => onUpdate(step.id, { resourceLocking: { ...rl, lockTtlMs: e.target.value ? Number(e.target.value) : undefined } })}
+                    className="w-28 h-8 rounded-lg border border-slate-200 px-2.5 text-[12px] font-bold focus:outline-none focus:border-blue-400" />
+                  <span className="text-[10px] text-slate-400">ms（超时自动释放）</span>
+                </div>
+              )}
+              {isHard && (
+                <p className="text-[10px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  硬锁（HARD）将排他性占用资源，其他步骤尝试获取同一资源时将被阻断并产生 CONFLICT 事件。
+                </p>
+              )}
+            </>
+          )}
+          {!isConfigured && (
+            <button type="button"
+              onClick={() => onUpdate(step.id, { resourceLocking: { lockType: 'SOFT', acquireOnEntry: true, releaseOnSuccess: true, releaseOnFailover: true } })}
+              className="text-[11px] text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1">
+              <Plus className="w-3 h-3" /> 启用资源锁定
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CostOptimizationPanel({ step, costDimensions, onUpdate }: {
+  step: RuleStep;
+  costDimensions: CostDimension[];
+  onUpdate: (id: string, updates: Partial<RuleStep>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const co = step.costOptimization;
+  const isEnabled = co?.enabled;
+  return (
+    <div className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors">
+        <div className="flex items-center gap-2 text-[11px] font-black text-slate-500 uppercase tracking-widest">
+          <span className="text-[13px]">¥</span>
+          成本优化
+          {isEnabled && (
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5 text-[9px] font-black ml-1">
+              已启用
+            </span>
+          )}
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="border-t border-slate-100 px-4 py-3 space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={!!co?.enabled}
+              onChange={e => onUpdate(step.id, { costOptimization: { enabled: e.target.checked, objective: co?.objective ?? 'MINIMIZE_TOTAL_COST', costDimensionIds: co?.costDimensionIds ?? [], maxAcceptableCost: co?.maxAcceptableCost, costWeightInSorter: co?.costWeightInSorter } })}
+              className="w-3.5 h-3.5 rounded accent-emerald-600" />
+            <span className="text-[12px] font-bold text-slate-700">启用成本优化目标</span>
+          </label>
+          {co?.enabled && (
+            <>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">优化目标</label>
+                <select value={co.objective}
+                  onChange={e => onUpdate(step.id, { costOptimization: { ...co, objective: e.target.value as typeof co.objective } })}
+                  className="w-full h-9 border border-slate-200 rounded-xl px-3 text-[12px] font-bold appearance-none focus:outline-none focus:border-emerald-400">
+                  <option value="MINIMIZE_TOTAL_COST">最小化总成本</option>
+                  <option value="MINIMIZE_LABOR">最小化人工成本</option>
+                  <option value="MINIMIZE_EQUIPMENT">最小化设备成本</option>
+                  <option value="BALANCE">均衡（多维度平衡）</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">启用成本维度</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {costDimensions.filter(d => d.enabled).map(d => (
+                    <label key={d.id} className="flex items-center gap-2 cursor-pointer border border-slate-100 rounded-lg px-3 py-2 hover:border-emerald-200 transition-colors">
+                      <input type="checkbox"
+                        checked={co.costDimensionIds.includes(d.id)}
+                        onChange={e => {
+                          const ids = e.target.checked
+                            ? [...co.costDimensionIds, d.id]
+                            : co.costDimensionIds.filter(id => id !== d.id);
+                          onUpdate(step.id, { costOptimization: { ...co, costDimensionIds: ids } });
+                        }}
+                        className="w-3.5 h-3.5 rounded accent-emerald-600 shrink-0" />
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-700 leading-none">{d.name}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">{d.baseRate} {d.unit}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">成本上限</label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-black text-slate-400">¥</span>
+                    <input type="number" placeholder="如 200" value={co.maxAcceptableCost ?? ''}
+                      onChange={e => onUpdate(step.id, { costOptimization: { ...co, maxAcceptableCost: e.target.value ? Number(e.target.value) : undefined } })}
+                      className="w-full h-8 rounded-lg border border-slate-200 px-2.5 text-[12px] font-bold focus:outline-none focus:border-emerald-400" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">成本权重 {co.costWeightInSorter ?? 0}%</label>
+                  <input type="range" min={0} max={100} value={co.costWeightInSorter ?? 0}
+                    onChange={e => onUpdate(step.id, { costOptimization: { ...co, costWeightInSorter: Number(e.target.value) } })}
+                    className="w-full accent-emerald-600 mt-1.5" />
+                  <div className="flex justify-between text-[9px] text-slate-400"><span>纯因子排序</span><span>纯成本排序</span></div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Editor({ strategy, allStrategies, independentRules = [], globalGuardrails = [], onUpdateGlobalGuardrails, onBack, onSimulate, onSave, onOpenHelp }: EditorProps) {
   const [data, setData] = useState<StrategyDetail | null>(strategy);
   const [draggedFactor, setDraggedFactor] = useState<Factor | null>(null);
   const [activeRuleId, setActiveRuleId] = useState<string | null>(data?.rules?.[0]?.id || null);
@@ -311,21 +492,46 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
     return { branched: branches, subjects, steps, priorityGroups: groups, hasGuardrails: guardrails };
   }, [data]);
 
-  const handleImportRule = (rule: StrategyRule) => {
-    // Clone the rule with a new ID to avoid conflicts
+  const handleImportRule = (rule: StrategyRule, isFromIndependentLib: boolean = false) => {
     const clonedRule: StrategyRule = {
       ...rule,
       id: `rule-ref-${Math.floor(Math.random() * 10000)}`,
       name: `${rule.name} (引用)`,
-      enabled: false // Default to disabled to let user review
+      enabled: false,
+      sourceRuleId: isFromIndependentLib ? rule.id : undefined,
     };
-    
+
     setData(prev => {
       if (!prev) return prev;
       return { ...prev, rules: [...prev.rules, clonedRule] };
     });
     setActiveRuleId(clonedRule.id);
     setIsImportModalOpen(false);
+  };
+
+  function getStepOverrideCount(step: RuleStep, sourceStep: RuleStep | undefined): number {
+    if (!sourceStep) return 0;
+    const fields = ['filters', 'sorters', 'flowControl', 'failoverAction', 'config',
+                    'executionConstraints', 'resourceLocking', 'costOptimization'] as const;
+    return fields.filter(f => JSON.stringify(step[f]) !== JSON.stringify(sourceStep[f])).length;
+  }
+
+  const handleResetStepToSource = (stepId: string) => {
+    if (!activeRuleId || !data) return;
+    const activeRuleInData = data.rules.find(r => r.id === activeRuleId);
+    const srcRule = independentRules.find(r => r.id === activeRuleInData?.sourceRuleId);
+    const srcStep = srcRule?.steps.find(s => s.id === stepId);
+    if (!srcStep) return;
+    handleUpdateStep(stepId, {
+      filters: srcStep.filters,
+      sorters: srcStep.sorters,
+      flowControl: srcStep.flowControl,
+      failoverAction: srcStep.failoverAction,
+      config: srcStep.config,
+      executionConstraints: srcStep.executionConstraints,
+      resourceLocking: srcStep.resourceLocking,
+      costOptimization: srcStep.costOptimization,
+    });
   };
 
   const handleAddStep = () => {
@@ -1752,6 +1958,14 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     <div className="font-bold text-[14px] text-theme-ink tracking-tight uppercase group flex items-center gap-2">
                        业务维度属性定义 (Dimension Definition)
                     </div>
+                    {activeRule.sourceRuleId && (() => {
+                      const src = independentRules.find(r => r.id === activeRule.sourceRuleId);
+                      return src ? (
+                        <span className="text-[10px] text-blue-500 border border-blue-100 bg-blue-50 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 normal-case">
+                          <LinkIcon className="w-3 h-3" /> 引用自：{src.name}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-6">
@@ -2429,6 +2643,16 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                   <span className="inline-flex items-center rounded-full bg-slate-50 text-slate-600 border border-slate-200 px-2 py-0.5 text-[10px] font-black tracking-tight">
                                     过滤 {stepFilters.length} · 因子 {stepSorters.length} · 参数 {configCount}
                                   </span>
+                                  {activeRule.sourceRuleId && (() => {
+                                    const srcRule = independentRules.find(r => r.id === activeRule.sourceRuleId);
+                                    const srcStep = srcRule?.steps.find(s => s.id === step.id);
+                                    const count = getStepOverrideCount(step, srcStep);
+                                    return count > 0 ? (
+                                      <span className="inline-flex items-center rounded-full bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 text-[10px] font-black tracking-tight gap-1">
+                                        ↗ 已覆盖 {count} 项
+                                      </span>
+                                    ) : null;
+                                  })()}
                                 </div>
 
                                 <input
@@ -2666,6 +2890,20 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                                  </button>
                               </div>
 
+                              {activeRule.sourceRuleId && (() => {
+                                const srcRule = independentRules.find(r => r.id === activeRule.sourceRuleId);
+                                const srcStep = srcRule?.steps.find(s => s.id === step.id);
+                                const count = getStepOverrideCount(step, srcStep);
+                                return count > 0 ? (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleResetStepToSource(step.id); }}
+                                    className="h-9 px-2 flex items-center gap-1 text-[10px] font-bold text-orange-500 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-all border border-orange-100 hover:border-orange-300"
+                                    title="重置到库原始值"
+                                  >
+                                    <RotateCcw className="w-3 h-3" /> 重置
+                                  </button>
+                                ) : null;
+                              })()}
                               <button
                                 onClick={() => handleRemoveStep(step.id)}
                                 className="w-9 h-9 flex items-center justify-center text-theme-muted hover:text-red-500 hover:bg-red-50 rounded-full transition-all group/del active:scale-95 border border-transparent hover:border-red-100"
@@ -3098,6 +3336,10 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
 
                           {/* Execution Constraints Panel */}
                           <ExecutionConstraintsPanel step={step} onUpdate={handleUpdateStep} />
+                          {/* Resource Locking Panel */}
+                          <ResourceLockingPanel step={step} onUpdate={handleUpdateStep} />
+                          {/* Cost Optimization Panel */}
+                          <CostOptimizationPanel step={step} costDimensions={mockCostDimensions} onUpdate={handleUpdateStep} />
                         </div>
                       </div>
                     </div>
@@ -3187,7 +3429,7 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                   </div>
                   <Button variant="outline" className="h-8 text-[11px] font-bold group-hover:bg-theme-primary group-hover:text-white group-hover:border-theme-primary" onClick={() => {
                      const { sourceName, isIndependent, ...cleanRule } = rule as any;
-                     handleImportRule(cleanRule);
+                     handleImportRule(cleanRule, !!isIndependent);
                   }}>
                     挂载该维度
                   </Button>
@@ -3582,13 +3824,52 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
               </div>
               
               <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
+                  {(() => {
+                    const mountedSourceIds = new Set((data?.guardrails || []).map(g => g.sourceGuardrailId).filter(Boolean));
+                    const available = globalGuardrails.filter(gg => !mountedSourceIds.has(gg.id));
+                    if (available.length === 0) return null;
+                    return (
+                      <div className="p-4 border border-blue-100 rounded-2xl bg-blue-50/40 space-y-2">
+                        <div className="text-[10px] font-black text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5" /> 从全局红线库挂载
+                        </div>
+                        {available.map(gg => (
+                          <div key={gg.id} className="flex items-center justify-between bg-white border border-blue-100 rounded-xl px-4 py-2.5 gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px] font-bold text-slate-800 truncate">{gg.name}</span>
+                                <span className={`shrink-0 text-[10px] font-black px-1.5 py-0.5 rounded border ${gg.type === 'BLOCK' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                  {gg.type === 'BLOCK' ? '强制阻断' : '强控预警'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5 truncate">{gg.description}</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const mounted = { ...gg, id: `gg-ref-${Date.now()}`, sourceGuardrailId: gg.id };
+                                setData(prev => prev ? { ...prev, guardrails: [...(prev.guardrails || []), mounted] } : prev);
+                              }}
+                              className="shrink-0 h-7 px-3 text-[11px] font-bold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all"
+                            >
+                              挂载
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {data?.guardrails?.map((gr) => (
                     <div key={gr.id} className="p-5 border border-red-100 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
                       <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${gr.active ? 'bg-red-500' : 'bg-slate-300'}`}></div>
                       
                       <div className="flex items-start justify-between mb-3">
                           <div>
-                            <h4 className="text-[15px] font-black text-slate-800">{gr.name}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-[15px] font-black text-slate-800">{gr.name}</h4>
+                              {gr.sourceGuardrailId && (
+                                <span className="text-[10px] text-slate-400 border border-slate-200 bg-slate-50 px-1.5 py-0.5 rounded-full font-bold">来自全局库</span>
+                              )}
+                            </div>
                             <p className="text-[12px] text-slate-500 mt-1">{gr.description}</p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -3956,6 +4237,25 @@ export default function Editor({ strategy, allStrategies, independentRules = [],
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Rollback Policy — always visible */}
+              <div className="px-8 py-4 border-t border-slate-100 bg-slate-50/60">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[12px] font-black text-slate-700">步骤失败回滚策略</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">资源锁定的步骤失败时，决定已获取的锁如何回滚</p>
+                  </div>
+                  <select
+                    value={data.rollbackPolicy ?? 'NONE'}
+                    onChange={e => setData(prev => prev ? { ...prev, rollbackPolicy: e.target.value as 'FULL' | 'PARTIAL' | 'NONE' } : prev)}
+                    className="h-9 border border-slate-200 rounded-xl px-3 pr-8 text-[12px] font-bold appearance-none focus:outline-none focus:border-blue-400 bg-white"
+                  >
+                    <option value="NONE">不回滚（保留现有行为）</option>
+                    <option value="PARTIAL">部分回滚（仅失败步骤之后）</option>
+                    <option value="FULL">全量回滚（释放所有已锁资源）</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-3 border-t border-slate-100 px-8 py-5">

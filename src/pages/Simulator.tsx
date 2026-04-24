@@ -6,6 +6,7 @@ import { Button, Input, Badge, Select, Card } from '../components/ui';
 import { X, Loader2, BarChart, Activity, TrendingUp, ShieldCheck, History, Info, ArrowLeftRight, PlayCircle, Settings2, Sparkles, ShieldAlert, BookOpen, GitBranch, Download, ChevronDown, ChevronRight, Timer } from 'lucide-react';
 import { executeStrategy } from '../utils/mockExecutionEngine';
 import { ExecutionTrace } from '../types/trace';
+import { mockCostDimensions } from '../data/mock';
 
 interface SimulatorProps {
   strategy: StrategyDetail | null;
@@ -193,7 +194,7 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
     const locPrefixes = envSnapshot === 'sh1' ? ['A1','B2','C1'] : ['W1','X2','Y1'];
 
     setTimeout(() => {
-      setExecutionTrace(executeStrategy(strategy, { envSnapshot, owner: strategy.owner }));
+      setExecutionTrace(executeStrategy(strategy, { envSnapshot, owner: strategy.owner }, mockCostDimensions));
       setSimResult({
         logs,
         guardrailResults,
@@ -774,6 +775,66 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                       </button>
                     </div>
 
+                    {/* Cost analysis card */}
+                    {executionTrace.totalEstimatedCost !== undefined && (
+                      <div className="border border-emerald-100 bg-emerald-50/40 rounded-xl p-4">
+                        <h5 className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <span className="text-[14px] font-black">¥</span> 预估成本分析
+                        </h5>
+                        <div className="flex items-end gap-4 mb-3">
+                          <div>
+                            <p className="text-[10px] text-emerald-600 font-bold">总预估成本</p>
+                            <p className="text-[22px] font-black text-emerald-700 leading-none">¥{executionTrace.totalEstimatedCost.toFixed(2)}</p>
+                          </div>
+                          {executionTrace.costBreakdownSummary && (
+                            <p className="text-[10px] text-emerald-500 mb-1">{executionTrace.costBreakdownSummary.length} 个成本维度</p>
+                          )}
+                        </div>
+                        {executionTrace.costBreakdownSummary && executionTrace.costBreakdownSummary.length > 0 && (
+                          <div className="space-y-1.5">
+                            {executionTrace.costBreakdownSummary.map(b => {
+                              const pct = executionTrace.totalEstimatedCost! > 0
+                                ? Math.round((b.estimatedCost / executionTrace.totalEstimatedCost!) * 100)
+                                : 0;
+                              return (
+                                <div key={b.dimensionId} className="flex items-center gap-2">
+                                  <span className="text-[10px] text-slate-600 w-20 shrink-0">{b.dimensionName}</span>
+                                  <div className="flex-1 h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="text-[10px] font-mono text-emerald-700 w-14 text-right shrink-0">¥{b.estimatedCost.toFixed(2)}</span>
+                                  <span className="text-[9px] text-slate-400 w-8 shrink-0">{pct}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Resource lock summary */}
+                    {executionTrace.resourceLockSummary && (
+                      <div className={`border rounded-xl p-4 ${executionTrace.resourceLockSummary.conflicts > 0 ? 'border-red-100 bg-red-50/40' : 'border-slate-100 bg-slate-50/40'}`}>
+                        <h5 className={`text-[11px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2 ${executionTrace.resourceLockSummary.conflicts > 0 ? 'text-red-700' : 'text-slate-500'}`}>
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                          资源锁竞争摘要
+                        </h5>
+                        <div className="grid grid-cols-4 gap-3">
+                          {([
+                            { label: '获取', value: executionTrace.resourceLockSummary.acquired, color: 'text-blue-600' },
+                            { label: '释放', value: executionTrace.resourceLockSummary.released, color: 'text-emerald-600' },
+                            { label: '冲突', value: executionTrace.resourceLockSummary.conflicts, color: executionTrace.resourceLockSummary.conflicts > 0 ? 'text-red-600' : 'text-slate-400' },
+                            { label: '回滚', value: executionTrace.resourceLockSummary.rolledBack, color: 'text-amber-600' },
+                          ] as const).map(({ label, value, color }) => (
+                            <div key={label} className="text-center">
+                              <p className={`text-[20px] font-black leading-none ${color}`}>{value}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Guardrail hits */}
                     {executionTrace.guardrailsEvaluated.some(g => g.hitCount > 0) && (
                       <div className="border border-red-100 bg-red-50/50 rounded-xl p-4">
@@ -839,6 +900,21 @@ export default function Simulator({ strategy, activeRuleId, onClose }: Simulator
                                       {stepTrace.truncatedByConstraint && (
                                         <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-100 rounded px-1.5 py-0.5 font-bold flex items-center gap-1 shrink-0">
                                           <Timer className="w-2.5 h-2.5" /> {stepTrace.truncatedByConstraint}
+                                        </span>
+                                      )}
+                                      {stepTrace.lockEvents && stepTrace.lockEvents.some(e => e.eventType === 'CONFLICT') && (
+                                        <span className="text-[9px] bg-red-50 text-red-600 border border-red-100 rounded px-1.5 py-0.5 font-bold flex items-center gap-1 shrink-0">
+                                          🔒 {stepTrace.lockEvents.filter(e => e.eventType === 'CONFLICT').length} 冲突
+                                        </span>
+                                      )}
+                                      {stepTrace.lockEvents && !stepTrace.lockEvents.some(e => e.eventType === 'CONFLICT') && stepTrace.lockEvents.some(e => e.eventType === 'ACQUIRE') && (
+                                        <span className="text-[9px] bg-slate-50 text-slate-500 border border-slate-200 rounded px-1.5 py-0.5 font-bold shrink-0">
+                                          🔒 {stepTrace.lockEvents.filter(e => e.eventType === 'ACQUIRE').length} 锁
+                                        </span>
+                                      )}
+                                      {stepTrace.costSummary && (
+                                        <span className="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-100 rounded px-1.5 py-0.5 font-bold shrink-0">
+                                          ¥{stepTrace.costSummary.totalEstimated.toFixed(1)}
                                         </span>
                                       )}
                                       <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${stepTrace.flowDecision === 'TERMINATE' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
